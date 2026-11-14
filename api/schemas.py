@@ -50,3 +50,21 @@ class TimeseriesResponse(BaseModel):
     end: str
     series: list[RegionSeries]
     provenance: Provenance
+
+class TrendResult(BaseModel):
+    slope_per_decade: float = Field(description="Change per decade, in the variable's unit")
+    unit: str
+    p_value: float = Field(description="Small (below 0.05) means chance alone is an unlikely explanation")
+    significant: bool
+    direction: Literal["increasing", "decreasing", "flat"] = Field(description="Sign of the slope only. Check `significant` too.")
+    confidence_interval: list[float] = Field(description="95% range for the slope: [low, high]")
+    method: str = Field(description="Which calculation produced this result")
+    n_months: int = Field(description="Number of months with data that were used")
+    missing_fraction: float = Field(description="Share of months in the range that had no data")
+
+
+class TrendResponse(BaseModel):
+    region: str
+    variable: str
+    result: TrendResult
+    provenance: Provenance
