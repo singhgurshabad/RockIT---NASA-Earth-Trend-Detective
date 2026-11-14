@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -68,3 +68,52 @@ class TrendResponse(BaseModel):
     variable: str
     result: TrendResult
     provenance: Provenance
+
+
+class MlTrend(BaseModel):
+    region: str
+    variable: str
+    unit: str
+    status: str
+    start: str
+    end: str
+    n_observations: int
+    expected_months: int
+    coverage: float
+    max_gap_months: int
+    slope_per_decade: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+    p_value: Optional[float] = None
+    q_value: Optional[float] = None
+    direction: Optional[str] = None
+    significant: Optional[bool] = None
+    evidence: Optional[str] = None
+    standardized_trend: Optional[float] = None
+    fitted_period_change: Optional[float] = None
+    hac_lags: Optional[int] = None
+    method: str
+
+
+class Hotspot(MlTrend):
+    magnitude: float
+
+
+class Opposite(BaseModel):
+    variable: str
+    decreasing: MlTrend
+    increasing: MlTrend
+
+
+class Twin(BaseModel):
+    region_a: str
+    region_b: str
+    distance: float
+
+
+class DiscoveriesResponse(BaseModel):
+    run_id: str
+    review_status: str
+    hotspots: list[Hotspot]
+    opposites: list[Opposite]
+    twins: list[Twin]
