@@ -1,12 +1,17 @@
 import json
 from pathlib import Path
-from typing import Optional
+from typing import Literal, Optional
 
-from fastapi import FastAPI, HTTPException
+from pydantic import BaseModel, Field
+
+from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 
 DATA_DIR = Path(__file__).parent / "data"
 
-app = FastAPI(title="RockIT API")
+app = FastAPI(
+    title="RockIT API",
+    description="Environmental trends from NASA GLDAS data.",
+)
 
 def load_json(filename):
     return json.loads((DATA_DIR / filename).read_text())
