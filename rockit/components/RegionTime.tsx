@@ -1,5 +1,10 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { getRegions, type ApiRegion } from "@/lib/api";
 import { MAX_DATE, MIN_DATE, REGIONS, timeError } from "@/lib/constants";
 import type { Selection } from "@/lib/types";
+import Globe from "./Globe";
 
 const field = "w-full rounded-lg border-2 border-line bg-page p-2 text-[17px] text-ink";
 
@@ -10,16 +15,28 @@ export default function RegionTime({
   sel: Selection;
   onChange: (s: Selection) => void;
 }) {
+
+     const [regions, setRegions] = useState<ApiRegion[]>([]);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    getRegions()
+      .then(setRegions)
+      .catch((e) => setError(e.message));
+  }, []);
+
+  const current = regions.find((r) => r.id === sel.region);
+
   return (
     <div className="flex flex-wrap items-start justify-center gap-6">
       <div>
-        {/* TODO: replace this circle with the MapLibre globe */}
-        <div className="grid aspect-square w-[min(260px,40vw)] place-items-center rounded-full border-[3px] border-line bg-[radial-gradient(circle_at_35%_30%,#7fc8ff,#2a62c9_70%)] text-sm text-white">
-          Globe goes here
-        </div>
+        <Globe region={sel.region} />
         <div className="mt-3 rounded-[20px] border-[3px] border-line bg-card px-4 py-1.5 text-center">
-          {sel.region}
+          {current ? current.name : "…"}
         </div>
+        {current && (
+          <p className="mt-2 max-w-[260px] text-sm">{current.why_it_matters}</p>
+        )}
       </div>
 
       <div className="min-w-[260px] rounded-2xl border-[3px] border-line bg-card p-[18px]">
@@ -30,7 +47,10 @@ export default function RegionTime({
           value={sel.region}
           onChange={(e) => onChange({ ...sel, region: e.target.value })}
         >
-          {REGIONS.map((r) => <option key={r}>{r}</option>)}
+          {regions.length === 0 && <option value={sel.region}>Loading…</option>}
+          {regions.map((r) => (
+            <option key={r.id} value={r.id}>{r.name}</option>
+          ))}
         </select>
 
         <div className="mb-1 mt-4 text-lg">
