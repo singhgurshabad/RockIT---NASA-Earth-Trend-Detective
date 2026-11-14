@@ -69,6 +69,25 @@ app.add_middleware(
 def load_json(filename):
     return json.loads((DATA_DIR / filename).read_text())
 
+ML_DIR = DATA_DIR / "rockit"
+
+
+def read_ml(name):
+    return json.loads((ML_DIR / name).read_text())
+
+
+MANIFEST = read_ml("manifest.json")
+TRENDS = read_ml("trends.json")
+CHART = read_ml("chart_data.json")
+DISCOVERIES = read_ml("discoveries.json")
+
+RUN_ID = TRENDS["run_id"]
+for _name, _doc in [("manifest", MANIFEST), ("chart_data", CHART), ("discoveries", DISCOVERIES)]:
+    if _doc["run_id"] != RUN_ID:
+        raise RuntimeError(f"{_name}.json has run_id {_doc['run_id']}, expected {RUN_ID}")
+
+REVIEW_STATUS = MANIFEST["status"]
+
 
 @app.get("/api/health")
 def health():
