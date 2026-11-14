@@ -110,7 +110,7 @@ def build_regions():
             "id": r["region_id"],
             "name": r["name"],
             "group": r["type"],
-            "anchor": r["anchor"],
+            "anchor": r.get("anchor") or [(min(lons) + max(lons)) / 2, (min(lats) + max(lats)) / 2],
             "bbox": [min(lons), min(lats), max(lons), max(lats)],
             "area_km2": r.get("hydrobasins_sub_area_km2"),
         })
