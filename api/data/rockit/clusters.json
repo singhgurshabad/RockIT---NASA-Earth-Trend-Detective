@@ -1,0 +1,241 @@
+{
+  "schema_version": "1.0",
+  "run_id": "20261114T211652769653Z",
+  "status": "passed_heuristic_checks",
+  "algorithm": "KMeans",
+  "n_training_regions": 20,
+  "k": 2,
+  "features": [
+    "surface_temperature",
+    "precipitation",
+    "soil_moisture",
+    "evapotranspiration"
+  ],
+  "scaling": "physical trend per decade / local monthly-anomaly standard deviation",
+  "evaluation": {
+    "k": 2,
+    "silhouette": 0.32780983576184763,
+    "min_group_size": 7,
+    "seed_ari": 1.0,
+    "endpoint_ari": 0.8000886033890796,
+    "trim_start_ari": 0.8000886033890796,
+    "trim_end_ari": 1.0,
+    "passes_checks": true
+  },
+  "candidates": [
+    {
+      "k": 2,
+      "silhouette": 0.32780983576184763,
+      "min_group_size": 7,
+      "seed_ari": 1.0,
+      "endpoint_ari": 0.8000886033890796,
+      "trim_start_ari": 0.8000886033890796,
+      "trim_end_ari": 1.0,
+      "passes_checks": true
+    },
+    {
+      "k": 3,
+      "silhouette": 0.2548840900971485,
+      "min_group_size": 6,
+      "seed_ari": 0.6029776674937966,
+      "endpoint_ari": 0.6277915632754343,
+      "trim_start_ari": 1.0,
+      "trim_end_ari": 0.6277915632754343,
+      "passes_checks": false
+    },
+    {
+      "k": 4,
+      "silhouette": 0.25302123399438353,
+      "min_group_size": 2,
+      "seed_ari": 0.3868270500220038,
+      "endpoint_ari": 0.13598357048555082,
+      "trim_start_ari": 0.6100045613501597,
+      "trim_end_ari": 0.13598357048555082,
+      "passes_checks": false
+    },
+    {
+      "k": 5,
+      "silhouette": 0.31825340556206355,
+      "min_group_size": 2,
+      "seed_ari": 0.8599078341013825,
+      "endpoint_ari": 0.53440150801131,
+      "trim_start_ari": 0.6847926267281106,
+      "trim_end_ari": 0.53440150801131,
+      "passes_checks": false
+    }
+  ],
+  "centers": [
+    {
+      "cluster": 0,
+      "features": {
+        "surface_temperature": 0.1455883161615783,
+        "precipitation": -0.05169267572931146,
+        "soil_moisture": -0.3075231658199655,
+        "evapotranspiration": 0.24118648914544344
+      }
+    },
+    {
+      "cluster": 1,
+      "features": {
+        "surface_temperature": 0.8998339180578099,
+        "precipitation": 0.03031053713861236,
+        "soil_moisture": -0.11926369755522322,
+        "evapotranspiration": 0.28290765776989224
+      }
+    }
+  ],
+  "assignments": [
+    {
+      "region": "alaska_tundra",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.5905465521414357,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "alps",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.46607646652499,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "amazon",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.5693583536817933,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "arabian_desert",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.15361728135443967,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "california",
+      "cluster": 0,
+      "role": "validation_assignment",
+      "distance_to_center": 0.36954675620879235,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "canadian_boreal",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.5376960476962042,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "central_andean_puna",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.7906452291634116,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "central_valley",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.33754846282559275,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "congo",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.5719031316495531,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "ethiopian_highlands",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.4269785572475384,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "gangetic_plains",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.3458571352647143,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "great_plains",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.24129729858218923,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "great_victoria_desert",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.59968271617659,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "hindu_kush_himalaya",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.6836990807684277,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "kazakh_steppe",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.5193957949491023,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "mississippi",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.1552277043539306,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "nile",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.38098379904406354,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "pampas",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.4900128748406412,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "sahara",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.1528325573475331,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "siberian_taiga",
+      "cluster": 0,
+      "role": "training",
+      "distance_to_center": 0.43803092462798676,
+      "model_status": "passed_heuristic_checks"
+    },
+    {
+      "region": "yangtze",
+      "cluster": 1,
+      "role": "training",
+      "distance_to_center": 0.5264854433205198,
+      "model_status": "passed_heuristic_checks"
+    }
+  ],
+  "limitations": [
+    "Descriptive grouping, not forecasts or causal effects",
+    "Overlapping regions are not independent samples",
+    "Cluster IDs are arbitrary; stability cutoffs are project heuristics"
+  ]
+}
