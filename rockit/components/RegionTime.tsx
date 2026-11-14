@@ -1,4 +1,5 @@
 import { MAX_DATE, MIN_DATE, REGIONS, timeError } from "@/lib/constants";
+import Globe from "./Globe";
 import type { Selection } from "@/lib/types";
 
 const field = "w-full rounded-lg border-2 border-line bg-page p-2 text-[17px] text-ink";
@@ -13,10 +14,7 @@ export default function RegionTime({
   return (
     <div className="flex flex-wrap items-start justify-center gap-6">
       <div>
-        {/* TODO: replace this circle with the MapLibre globe */}
-        <div className="grid aspect-square w-[min(260px,40vw)] place-items-center rounded-full border-[3px] border-line bg-[radial-gradient(circle_at_35%_30%,#7fc8ff,#2a62c9_70%)] text-sm text-white">
-          Globe goes here
-        </div>
+        <Globe region={sel.region} />
         <div className="mt-3 rounded-[20px] border-[3px] border-line bg-card px-4 py-1.5 text-center">
           {sel.region}
         </div>
