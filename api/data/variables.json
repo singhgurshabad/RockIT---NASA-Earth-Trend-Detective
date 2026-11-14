@@ -1,0 +1,37 @@
+[
+  {
+    "id": "surface_temperature",
+    "label": "Surface temperature",
+    "gldas_field": "AvgSurfT_inst",
+    "unit": "°C",
+    "description": "How warm the land surface itself is, like the ground under your feet. It is not the same as the air temperature a weather report gives.",
+    "why_it_matters": "A warming land surface dries soil faster, stresses crops and forests, and can signal heat building up in a region.",
+    "icon": "thermometer"
+  },
+  {
+    "id": "precipitation",
+    "label": "Precipitation",
+    "gldas_field": "Rainf_f_tavg",
+    "unit": "mm/month",
+    "description": "How much water falls on the region in a month as rain or snow, given as the depth it would make if it stayed where it landed.",
+    "why_it_matters": "Precipitation refills soil, rivers and groundwater. Changes in it are one of the main drivers of drought and flooding.",
+    "icon": "cloud-rain"
+  },
+  {
+    "id": "soil_moisture",
+    "label": "Soil moisture (0–10 cm)",
+    "gldas_field": "SoilMoi0_10cm_inst",
+    "unit": "kg/m²",
+    "description": "How much water is held in the top 10 cm of soil. One kg of water per square metre is about 1 mm of water depth.",
+    "why_it_matters": "Plants draw water from this layer, so it shows how dry or wet the land is for crops and ecosystems.",
+    "icon": "sprout"
+  },
+  {
+    "id": "evapotranspiration",
+    "label": "Evapotranspiration",
+    "gldas_field": "Evap_tavg",
+    "unit": "mm/month",
+    "description": "Water moving from the land into the air, both evaporating from soil and surfaces and being released by plants.",
+    "why_it_matters": "It links the water cycle and the energy cycle. It shows how much water plants and soils are returning to the atmosphere.",
+    "icon": "droplets"
+  }
