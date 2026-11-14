@@ -17,7 +17,7 @@ export const DEFAULT_SELECTION: Selection = {
   region: REGIONS[0],
   start: "2000-01-01",
   end: "2024-12-31",
-  variables: [VARIABLES[0]],
+  variables: ["surface_temperature"],
 };
 
 export function timeError(s: Selection): string {
