@@ -31,3 +31,22 @@ class GlossaryEntry(BaseModel):
     definition: str = Field(description="One-sentence definition")
     explanation: str | None = None
     related: list[str] = Field(default=[], description="Ids of related terms")
+
+class Provenance(BaseModel):
+    dataset: str = Field(description="Where the numbers come from")
+    is_development_data: bool = Field(description="True means the numbers are FAKE sample data")
+
+
+class RegionSeries(BaseModel):
+    region: str
+    dates: list[str] = Field(description="First day of each month, YYYY-MM-DD")
+    values: list[float | None] = Field(description="One value per date; null where data is missing")
+
+
+class TimeseriesResponse(BaseModel):
+    variable: str
+    unit: str
+    start: str
+    end: str
+    series: list[RegionSeries]
+    provenance: Provenance

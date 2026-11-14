@@ -1,12 +1,14 @@
 import json
+import pandas as pd
 from pathlib import Path
 from typing import Optional
 
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 
-from schemas import GlossaryEntry, Region, Variable
+from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse
 
 DATA_DIR = Path(__file__).parent / "data"
+TABLE = pd.read_csv(DATA_DIR / "dev" / "sample.csv", parse_dates=["date"])
 
 app = FastAPI(
     title="RockIT API",
@@ -72,3 +74,53 @@ def glossary_term(
         if entry["id"] == term_id:
             return entry
     raise HTTPException(status_code=404, detail=f"Unknown glossary term '{term_id}'")
+
+@app.get("/api/timeseries", response_model=TimeseriesResponse, summary="Monthly history for the chart")
+def timeseries(
+    variable: str = Query(..., description="Variable id, from /api/variables", examples=["soil_moisture"]),
+    region: list[str] = Query(
+        ...,
+        description="Region id, from /api/regions. Repeat it to compare regions: ?region=sahel&region=amazon_basin",
+        examples=["sahel"],
+    ),
+    start: Optional[str] = Query(None, description="First month, as YYYY-MM. Leave empty for the earliest.", examples=["2010-01"]),
+    end: Optional[str] = Query(None, description="Last month, as YYYY-MM. Leave empty for the latest.", examples=["2020-12"]),
+):
+    """Returns one list of monthly values per region, in the variable's unit."""
+    variables_by_id = {v["id"]: v for v in load_json("variables.json")}
+    region_ids = {r["id"] for r in load_json("regions.json")}
+
+    if variable not in variables_by_id:
+        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
+    for r in region:
+        if r not in region_ids:
+            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
+
+    try:
+        start_date = pd.Timestamp(start) if start else TABLE["date"].min()
+        end_date = pd.Timestamp(end) if end else TABLE["date"].max()
+    except ValueError:
+        raise HTTPException(422, "start and end must look like 2010-01")
+    if start_date > end_date:
+        raise HTTPException(422, "start must not be after end")
+
+    series = []
+    for r in region:
+        rows = TABLE[(TABLE["variable"] == variable) & (TABLE["region"] == r)]
+        rows = rows[(rows["date"] >= start_date) & (rows["date"] <= end_date)]
+        series.append(
+            {
+                "region": r,
+                "dates": rows["date"].dt.strftime("%Y-%m-%d").tolist(),
+                "values": [None if pd.isna(v) else float(v) for v in rows["value"]],
+            }
+        )
+
+    return {
+        "variable": variable,
+        "unit": variables_by_id[variable]["unit"],
+        "start": start_date.strftime("%Y-%m-%d"),
+        "end": end_date.strftime("%Y-%m-%d"),
+        "series": series,
+        "provenance": {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True},
+    }
