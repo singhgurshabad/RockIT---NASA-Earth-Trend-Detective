@@ -7,7 +7,7 @@
   --grid: #d3d3d3; --line: #555; --card: #eef9ff;
   color-scheme: light;
 }
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
     --bg: #10243a; --sky: #173e63; --ink: #bcd4ff; --btn: #44506f; --btn-hover: #56648a;
     --grid: #2b3442; --line: #7d8aa3; --card: #17293f;
