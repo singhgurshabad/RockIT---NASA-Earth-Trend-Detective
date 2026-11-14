@@ -119,6 +119,16 @@ def build_regions():
 
 REGIONS = build_regions()
 
+SERIES = {(s["region"], s["variable"]): s for s in CHART["series"]}
+REGION_IDS = {r["id"] for r in REGIONS}
+
+ML_PROVENANCE = {
+    "dataset": "NASA GLDAS Noah Land Surface Model L4 monthly 0.25 degree, v2.1 (model estimates, not observations)",
+    "is_development_data": False,
+    "run_id": RUN_ID,
+    "review_status": REVIEW_STATUS,
+}
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -177,41 +187,49 @@ def timeseries(
 ):
     """Returns one list of monthly values per region, in the variable's unit."""
     variables_by_id = {v["id"]: v for v in load_json("variables.json")}
-    region_ids = {r["id"] for r in load_json("regions.json")}
-
+    
     if variable not in variables_by_id:
         raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
     for r in region:
-        if r not in region_ids:
+        if r not in REGION_IDS:
             raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
 
     try:
-        start_date = pd.Timestamp(start) if start else TABLE["date"].min()
-        end_date = pd.Timestamp(end) if end else TABLE["date"].max()
+        start_ym = pd.Timestamp(start).strftime("%Y-%m") if start else None
+        end_ym = pd.Timestamp(end).strftime("%Y-%m") if end else None
     except ValueError:
         raise HTTPException(422, "start and end must look like 2010-01")
-    if start_date > end_date:
+    if start_ym and end_ym and start_ym > end_ym:
         raise HTTPException(422, "start must not be after end")
 
     series = []
     for r in region:
-        rows = TABLE[(TABLE["variable"] == variable) & (TABLE["region"] == r)]
-        rows = rows[(rows["date"] >= start_date) & (rows["date"] <= end_date)]
+        found = SERIES.get((r, variable))
+        if found is None:
+            raise HTTPException(404, f"No data for region '{r}' and variable '{variable}'")
+        unit = found["unit"]
+        points = [
+            p for p in found["series"]
+            if (not start_ym or p["date"][:7] >= start_ym) and (not end_ym or p["date"][:7] <= end_ym)
+        ]
         series.append(
             {
                 "region": r,
-                "dates": rows["date"].dt.strftime("%Y-%m-%d").tolist(),
-                "values": [None if pd.isna(v) else float(v) for v in rows["value"]],
+                "dates": [p["date"] for p in points],
+                "values": [p.get("value") for p in points],
+                "anomalies": [p.get("anomaly") for p in points],
+                "fitted": [p.get("fitted") for p in points],
+                "trend_component": [p.get("trend_component") for p in points],
             }
         )
-
+    all_dates = sorted(d for s in series for d in s["dates"])
     return {
         "variable": variable,
-        "unit": variables_by_id[variable]["unit"],
-        "start": start_date.strftime("%Y-%m-%d"),
-        "end": end_date.strftime("%Y-%m-%d"),
+        "unit": unit,
+        "start": all_dates[0] if all_dates else (start or ""),
+        "end": all_dates[-1] if all_dates else (end or ""),
         "series": series,
-        "provenance": PROVENANCE,
+        "provenance": ML_PROVENANCE,
     }
 
 def check_request(variable, regions_wanted, start, end):

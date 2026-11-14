@@ -22,7 +22,7 @@ class Region(BaseModel):
     area_km2: Optional[float] = None
     description: Optional[str] = None
     why_it_matters: Optional[str] = None
-    
+
 
 class GlossaryEntry(BaseModel):
     id: str
@@ -35,13 +35,17 @@ class GlossaryEntry(BaseModel):
 class Provenance(BaseModel):
     dataset: str = Field(description="Where the numbers come from")
     is_development_data: bool = Field(description="True means the numbers are FAKE sample data")
+    run_id: Optional[str] = Field(default=None, description="Which analysis run produced the numbers")
+    review_status: Optional[str] = Field(default=None, description="For example provisional_pending_scientific_review")
 
 
 class RegionSeries(BaseModel):
     region: str
     dates: list[str] = Field(description="First day of each month, YYYY-MM-DD")
     values: list[float | None] = Field(description="One value per date; null where data is missing")
-
+    anomalies: Optional[list[float | None]] = Field(default=None, description="Value minus that calendar month's typical value (removes the seasons)")
+    fitted: Optional[list[float | None]] = Field(default=None, description="The trend model's fitted line, seasons included")
+    trend_component: Optional[list[float | None]] = Field(default=None, description="Just the trend part of the fit, for drawing the trend line")
 
 class TimeseriesResponse(BaseModel):
     variable: str
