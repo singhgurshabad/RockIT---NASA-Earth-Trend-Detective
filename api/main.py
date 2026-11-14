@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 
 DATA_DIR = Path(__file__).parent / "data"
 
@@ -27,3 +27,17 @@ def regions(group: Optional[str] = None):
     if group:
         items = [r for r in items if r["group"].lower() == group.lower()]
     return items
+
+@app.get("/api/glossary")
+def glossary(category: Optional[str] = None):
+    items = load_json("glossary.json")
+    if category:
+        items = [g for g in items if g["category"] == category]
+    return items
+
+@app.get("/api/glossary/{term_id}")
+def glossary_term(term_id: str):
+    for entry in load_json("glossary.json"):
+        if entry["id"] == term_id:
+            return entry
+    raise HTTPException(status_code=404, detail=f"Unknown glossary term '{term_id}'")
