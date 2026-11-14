@@ -1,11 +1,15 @@
 import type { Selection } from "./types";
 
 export const REGIONS = ["California", "Himalayas", "Amazon Basin"];
-// Where the globe points for each region ([longitude, latitude]).
-export const REGION_VIEWS: Record<string, { center: [number, number]; zoom: number }> = {
-  California: { center: [-119.5, 37.2], zoom: 3.5 },
-  Himalayas: { center: [86, 28], zoom: 3.5 },
-  "Amazon Basin": { center: [-62, -5], zoom: 3 },
+// Where the globe points for each region. Smaller zoom = further out.
+// center is [longitude, latitude]; bounds is [west, south, east, north] and draws the highlight box.
+export const REGION_VIEWS: Record<
+  string,
+  { center: [number, number]; zoom: number; bounds: [number, number, number, number] }
+> = {
+  California: { center: [-119.5, 37.2], zoom: 2.4, bounds: [-124.5, 32.5, -114.1, 42] },
+  Himalayas: { center: [86, 28], zoom: 2.4, bounds: [72, 26, 100, 36] },
+  "Amazon Basin": { center: [-62, -5], zoom: 2, bounds: [-79, -16, -50, 5] },
 };
 
 export const VARIABLES = ["Surface temperature", "Precipitation", "Snow cover", "Vegetation index"];
@@ -24,7 +28,7 @@ export const DEFAULT_SELECTION: Selection = {
   region: REGIONS[0],
   start: "2000-01-01",
   end: "2024-12-31",
-  variables: ["surface_temperature"],
+  variables: [VARIABLES[0]],
 };
 
 export function timeError(s: Selection): string {
