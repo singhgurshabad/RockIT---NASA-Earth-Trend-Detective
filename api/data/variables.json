@@ -19,7 +19,7 @@
   },
   {
     "id": "soil_moisture",
-    "label": "Soil moisture (0–10 cm)",
+    "label": "Soil moisture (0-10 cm)",
     "gldas_field": "SoilMoi0_10cm_inst",
     "unit": "kg/m²",
     "description": "How much water is held in the top 10 cm of soil. One kg of water per square metre is about 1 mm of water depth.",
@@ -35,3 +35,4 @@
     "why_it_matters": "It links the water cycle and the energy cycle. It shows how much water plants and soils are returning to the atmosphere.",
     "icon": "droplets"
   }
+]
