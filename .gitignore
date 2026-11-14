@@ -7,3 +7,7 @@ api/data/processed/.venv/
 __pycache__/
 .pytest_cache/
 .DS_Store
+
+# macOS metadata
+.DS_Store
+._*
