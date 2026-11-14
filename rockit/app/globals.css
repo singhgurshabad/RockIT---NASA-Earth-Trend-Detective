@@ -1,0 +1,27 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --bg: #d0f0fd; --sky: #9fe0ff; --ink: #0a2fa8; --btn: #a6a9c0; --btn-hover: #8f93b3;
+  --grid: #d3d3d3; --line: #555; --card: #eef9ff;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #10243a; --sky: #173e63; --ink: #bcd4ff; --btn: #44506f; --btn-hover: #56648a;
+    --grid: #2b3442; --line: #7d8aa3; --card: #17293f;
+    color-scheme: dark;
+  }
+}
+
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); overflow: hidden; }
+
+/* the grid behind the hero / buttons */
+.bg-grid {
+  background-color: var(--grid);
+  background-image: linear-gradient(var(--line) 3px, transparent 3px),
+    linear-gradient(90deg, var(--line) 3px, transparent 3px);
+  background-size: 50px 50px;
+}
