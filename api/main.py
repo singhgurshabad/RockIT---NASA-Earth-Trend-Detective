@@ -88,6 +88,36 @@ for _name, _doc in [("manifest", MANIFEST), ("chart_data", CHART), ("discoveries
 
 REVIEW_STATUS = MANIFEST["status"]
 
+GEOJSON = read_ml("regions.geojson")
+
+
+def all_points(coords):
+    if isinstance(coords[0], (int, float)):
+        yield coords
+    else:
+        for c in coords:
+            yield from all_points(c)
+
+
+def build_regions():
+    shapes = {f["properties"]["region_id"]: f["geometry"] for f in GEOJSON["features"]}
+    regions = []
+    for r in MANIFEST["source_metadata"]["regions"]:
+        points = list(all_points(shapes[r["region_id"]]["coordinates"]))
+        lons = [p[0] for p in points]
+        lats = [p[1] for p in points]
+        regions.append({
+            "id": r["region_id"],
+            "name": r["name"],
+            "group": r["type"],
+            "anchor": r["anchor"],
+            "bbox": [min(lons), min(lats), max(lons), max(lats)],
+            "area_km2": r.get("hydrobasins_sub_area_km2"),
+        })
+    return regions
+
+
+REGIONS = build_regions()
 
 @app.get("/api/health")
 def health():
@@ -101,22 +131,11 @@ def variables():
     evapotranspiration) with their units and plain-language descriptions."""
     return load_json("variables.json")
 
-@app.get("/api/regions",
-         response_model=list[Region], 
-         summary="List the regions")
-def regions(
-    group: Optional[str] = Query(
-        None,
-        description="Only show regions in this group. Leave empty to see all regions.",
-        examples=["Africa"],
-    ),
-):
-    """Returns each region with its map box (`bbox`), centre point and descriptions.
-    Groups: North America, South America, Oceania, Africa."""
-    items = load_json("regions.json")
-    if group:
-        items = [r for r in items if r["group"].lower() == group.lower()]
-    return items
+@app.get("/api/regions", response_model=list[Region])
+def get_regions(group: Optional[str] = Query(None, description="Filter by region type, for example river_basin")):
+    if group is None:
+        return REGIONS
+    return [r for r in REGIONS if r["group"] == group]
 
 @app.get("/api/glossary",
          response_model=list[GlossaryEntry], 

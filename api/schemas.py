@@ -16,13 +16,13 @@ class Variable(BaseModel):
 class Region(BaseModel):
     id: str
     name: str
-    group: str = Field(description="Continent or climate group, used by the filter")
-    bbox: list[float] = Field(description="Map box as [west, south, east, north] in degrees")
-    centroid: list[float] = Field(description="Centre point as [longitude, latitude]")
-    boundary_type: Literal["bbox_approximation", "polygon"]
-    description: str
-    why_it_matters: str
-
+    group: str
+    anchor: list[float]
+    bbox: list[float]
+    area_km2: Optional[float] = None
+    description: Optional[str] = None
+    why_it_matters: Optional[str] = None
+    
 
 class GlossaryEntry(BaseModel):
     id: str
