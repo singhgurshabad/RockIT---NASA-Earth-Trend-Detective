@@ -1,0 +1,9 @@
+.venv/
+__pycache__/
+.pytest_cache/
+*.pyc
+.DS_Store
+api/data/processed/.venv/
+__pycache__/
+.pytest_cache/
+.DS_Store
