@@ -115,7 +115,7 @@ class DiscoveriesResponse(BaseModel):
     hotspots: list[Hotspot]
     opposites: list[Opposite]
     twins: list[Twin]
-
+    limitations: list[str]
 
 class TrendResponse(BaseModel):
     region: str

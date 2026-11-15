@@ -6,53 +6,10 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance
+from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance, DiscoveriesResponse
 from trend_calc import compute_trend
 
 DATA_DIR = Path(__file__).parent / "data"
-
-def validate_table(df):
-    """Stops the server at startup, with a clear message, if the data file is wrong."""
-    missing = [c for c in ["date", "region", "variable", "value", "unit"] if c not in df.columns]
-    if missing:
-        raise ValueError(f"Data file is missing columns: {missing}")
-    units = {v["id"]: v["unit"].replace("²", "2") for v in load_json("variables.json")}
-    regions = {r["id"] for r in load_json("regions.json")}
-    bad_vars = set(df["variable"]) - set(units)
-    bad_regions = set(df["region"]) - regions
-    if bad_vars:
-        raise ValueError(f"Unknown variable ids in data: {sorted(bad_vars)}")
-    if bad_regions:
-        raise ValueError(f"Unknown region ids in data: {sorted(bad_regions)}")
-    for var, expected in units.items():
-        found = set(df.loc[df["variable"] == var, "unit"])
-        if found and found != {expected}:
-            raise ValueError(f"Variable '{var}' has units {sorted(found)}, expected '{expected}'")
-    if df.duplicated(["date", "region", "variable"]).any():
-        raise ValueError("Data has duplicate (date, region, variable) rows")
-
-
-def load_table():
-    """Uses real files in data/processed/ if there are any, otherwise the fake sample."""
-    folder = DATA_DIR / "processed"
-    files = sorted(folder.glob("*.csv")) if folder.is_dir() else []
-    if files:
-        df = pd.concat([pd.read_csv(f, parse_dates=["date"]) for f in files], ignore_index=True)
-        validate_table(df)
-        return df, False
-    df = pd.read_csv(DATA_DIR / "dev" / "sample.csv", parse_dates=["date"])
-    return df, True
-
-
-TABLE, USING_SAMPLE = load_table()
-
-if USING_SAMPLE:
-    PROVENANCE = {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True}
-else:
-    PROVENANCE = {
-        "dataset": "NASA GLDAS Noah Land Surface Model L4 monthly 0.25 degree (model estimates)",
-        "is_development_data": False,
-    }
 
 app = FastAPI(
     title="RockIT API",
@@ -235,25 +192,6 @@ def timeseries(
         "provenance": ML_PROVENANCE,
     }
 
-def check_request(variable, regions_wanted, start, end):
-    """Validates the inputs and returns (variable info, start date, end date)."""
-    variables_by_id = {v["id"]: v for v in load_json("variables.json")}
-    region_ids = {r["id"] for r in load_json("regions.json")}
-    if variable not in variables_by_id:
-        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
-    for r in regions_wanted:
-        if r not in region_ids:
-            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
-    try:
-        start_date = pd.Timestamp(start) if start else TABLE["date"].min()
-        end_date = pd.Timestamp(end) if end else TABLE["date"].max()
-    except ValueError:
-        raise HTTPException(422, "start and end must look like 2010-01")
-    if start_date > end_date:
-        raise HTTPException(422, "start must not be after end")
-    return variables_by_id[variable], start_date, end_date
-
-
 @app.get("/api/trend", response_model=TrendResponse, summary="Trend and significance for one region")
 def trend(
     variable: str = Query(..., description="Variable id, from /api/variables", examples=["soil_moisture"]),
@@ -331,4 +269,22 @@ def trend(
         "note": "Quick estimate for a custom date range. Simpler than the full-period analysis and not corrected for testing many regions. Do not treat as a finding.",
         "result": result,
         "provenance": ML_PROVENANCE,
+    }
+
+@app.get("/api/discoveries", response_model=DiscoveriesResponse, summary="Hotspots, Earth Opposites and Earth Twins")
+def discoveries():
+    """Returns the precomputed discoveries.
+
+    - **hotspots**: the regions and variables changing the most, strongest first
+    - **opposites**: for each variable, the region getting lower versus the region getting higher
+    - **twins**: pairs of regions with similar behavior (smaller distance = more alike)
+
+    The numbers are provisional until the science review is finished."""
+    return {
+        "run_id": RUN_ID,
+        "review_status": REVIEW_STATUS,
+        "hotspots": DISCOVERIES["hotspots"],
+        "opposites": DISCOVERIES["opposites"],
+        "twins": DISCOVERIES["twins"],
+        "limitations": MANIFEST["limitations"],
     }
