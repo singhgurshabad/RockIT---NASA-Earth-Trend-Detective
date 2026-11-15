@@ -3,23 +3,42 @@
 import { useEffect, useRef } from "react";
 import "maplibre-gl/dist/maplibre-gl.css";
 import type { Map as MapLibreMap } from "maplibre-gl";
-import { REGION_VIEWS } from "@/lib/constants";
+import { getRegions, type ApiRegion } from "@/lib/api";
 
 // Free demo basemap from MapLibre. Fine for a prototype; swap in your own style later.
 const STYLE_URL = "https://demotiles.maplibre.org/style.json";
 
+type View = { center: [number, number]; zoom: number };
+
+const WORLD: View = { center: [0, 20], zoom: 1 };
+
+// Works out where to point the map from the region's bounding box [west, south, east, north].
+function viewFor(list: ApiRegion[], key: string): View | null {
+  const r = list.find((x) => x.id === key || x.name === key);
+  if (!r) return null;
+  const [west, south, east, north] = r.bbox;
+  const span = Math.max(east - west, north - south);
+  const zoom = Math.min(5, Math.max(1, Math.log2(360 / span) - 0.7));
+  return { center: [(west + east) / 2, (south + north) / 2], zoom };
+}
+
 export default function Globe({ region }: { region: string }) {
   const box = useRef<HTMLDivElement>(null);
   const map = useRef<MapLibreMap | null>(null);
+  const regionsRef = useRef<ApiRegion[]>([]);
   const regionRef = useRef(region); // lets the map's first view use the current region
   regionRef.current = region;
 
   // create the map once
   useEffect(() => {
     let cancelled = false;
-    import("maplibre-gl").then((maplibregl) => {
+    Promise.all([
+      import("maplibre-gl"),
+      getRegions().catch(() => [] as ApiRegion[]),
+    ]).then(([maplibregl, list]) => {
       if (cancelled || !box.current) return;
-      const v = REGION_VIEWS[regionRef.current];
+      regionsRef.current = list;
+      const v = viewFor(list, regionRef.current) ?? WORLD;
       const m = new maplibregl.Map({
         container: box.current,
         style: STYLE_URL,
@@ -39,7 +58,7 @@ export default function Globe({ region }: { region: string }) {
 
   // fly to the region whenever the dropdown changes
   useEffect(() => {
-    const v = REGION_VIEWS[region];
+    const v = viewFor(regionsRef.current, region);
     if (v && map.current) map.current.flyTo({ center: v.center, zoom: v.zoom, duration: 1500 });
   }, [region]);
 
