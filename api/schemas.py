@@ -126,3 +126,23 @@ class TrendResponse(BaseModel):
     note: str
     result: MlTrend
     provenance: Provenance
+
+class MapTrendItem(BaseModel):
+    region: str
+    name: str
+    slope_per_decade: Optional[float] = None
+    standardized_trend: Optional[float] = Field(
+        default=None, description="Trend in units of the region's own variability. Comparable across variables and regions, so good for map colors."
+    )
+    direction: Optional[str] = None
+    significant: Optional[bool] = None
+    evidence: Optional[str] = None
+    q_value: Optional[float] = None
+
+
+class MapTrendsResponse(BaseModel):
+    variable: str
+    unit: str
+    run_id: str
+    review_status: str
+    regions: list[MapTrendItem]

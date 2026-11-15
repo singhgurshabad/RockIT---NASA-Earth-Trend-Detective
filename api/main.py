@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance, DiscoveriesResponse
+from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance, DiscoveriesResponse, MapTrendsResponse
 from trend_calc import compute_trend
 
 DATA_DIR = Path(__file__).parent / "data"
@@ -288,3 +288,35 @@ def discoveries():
         "twins": DISCOVERIES["twins"],
         "limitations": MANIFEST["limitations"],
     }
+
+@app.get("/api/map-trends", response_model=MapTrendsResponse, summary="One trend per region, for coloring the map")
+def map_trends(
+    variable: str = Query(..., description="Variable id, from /api/variables", examples=["precipitation"]),
+):
+    """Returns the full-period trend for all 21 regions for one variable."""
+    variable_ids = {v["id"] for v in load_json("variables.json")}
+    if variable not in variable_ids:
+        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variable_ids)}")
+
+    names = {r["id"]: r["name"] for r in REGIONS}
+    items = []
+    unit = ""
+    for t in TRENDS["results"]:
+        if t["variable"] != variable:
+            continue
+        unit = t["unit"]
+        items.append({**t, "name": names[t["region"]]})
+
+    return {
+        "variable": variable,
+        "unit": unit,
+        "run_id": RUN_ID,
+        "review_status": REVIEW_STATUS,
+        "regions": items,
+    }
+
+
+@app.get("/api/regions/geojson", summary="Region outlines for the map")
+def regions_geojson():
+    """Returns the outlines of all 21 regions as GeoJSON. Each feature's properties include region_id."""
+    return GEOJSON
