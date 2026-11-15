@@ -10,8 +10,49 @@ from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendRe
 from trend_calc import compute_trend
 
 DATA_DIR = Path(__file__).parent / "data"
-TABLE = pd.read_csv(DATA_DIR / "dev" / "sample.csv", parse_dates=["date"])
-PROVENANCE = {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True}
+
+def validate_table(df):
+    """Stops the server at startup, with a clear message, if the data file is wrong."""
+    missing = [c for c in ["date", "region", "variable", "value", "unit"] if c not in df.columns]
+    if missing:
+        raise ValueError(f"Data file is missing columns: {missing}")
+    units = {v["id"]: v["unit"].replace("²", "2") for v in load_json("variables.json")}
+    regions = {r["id"] for r in load_json("regions.json")}
+    bad_vars = set(df["variable"]) - set(units)
+    bad_regions = set(df["region"]) - regions
+    if bad_vars:
+        raise ValueError(f"Unknown variable ids in data: {sorted(bad_vars)}")
+    if bad_regions:
+        raise ValueError(f"Unknown region ids in data: {sorted(bad_regions)}")
+    for var, expected in units.items():
+        found = set(df.loc[df["variable"] == var, "unit"])
+        if found and found != {expected}:
+            raise ValueError(f"Variable '{var}' has units {sorted(found)}, expected '{expected}'")
+    if df.duplicated(["date", "region", "variable"]).any():
+        raise ValueError("Data has duplicate (date, region, variable) rows")
+
+
+def load_table():
+    """Uses real files in data/processed/ if there are any, otherwise the fake sample."""
+    folder = DATA_DIR / "processed"
+    files = sorted(folder.glob("*.csv")) if folder.is_dir() else []
+    if files:
+        df = pd.concat([pd.read_csv(f, parse_dates=["date"]) for f in files], ignore_index=True)
+        validate_table(df)
+        return df, False
+    df = pd.read_csv(DATA_DIR / "dev" / "sample.csv", parse_dates=["date"])
+    return df, True
+
+
+TABLE, USING_SAMPLE = load_table()
+
+if USING_SAMPLE:
+    PROVENANCE = {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True}
+else:
+    PROVENANCE = {
+        "dataset": "NASA GLDAS Noah Land Surface Model L4 monthly 0.25 degree (model estimates)",
+        "is_development_data": False,
+    }
 
 app = FastAPI(
     title="RockIT API",
@@ -28,6 +69,65 @@ app.add_middleware(
 def load_json(filename):
     return json.loads((DATA_DIR / filename).read_text())
 
+ML_DIR = DATA_DIR / "rockit"
+
+
+def read_ml(name):
+    return json.loads((ML_DIR / name).read_text())
+
+
+MANIFEST = read_ml("manifest.json")
+TRENDS = read_ml("trends.json")
+CHART = read_ml("chart_data.json")
+DISCOVERIES = read_ml("discoveries.json")
+
+RUN_ID = TRENDS["run_id"]
+for _name, _doc in [("manifest", MANIFEST), ("chart_data", CHART), ("discoveries", DISCOVERIES)]:
+    if _doc["run_id"] != RUN_ID:
+        raise RuntimeError(f"{_name}.json has run_id {_doc['run_id']}, expected {RUN_ID}")
+
+REVIEW_STATUS = MANIFEST["status"]
+
+GEOJSON = read_ml("regions.geojson")
+
+
+def all_points(coords):
+    if isinstance(coords[0], (int, float)):
+        yield coords
+    else:
+        for c in coords:
+            yield from all_points(c)
+
+
+def build_regions():
+    shapes = {f["properties"]["region_id"]: f["geometry"] for f in GEOJSON["features"]}
+    regions = []
+    for r in MANIFEST["source_metadata"]["regions"]:
+        points = list(all_points(shapes[r["region_id"]]["coordinates"]))
+        lons = [p[0] for p in points]
+        lats = [p[1] for p in points]
+        regions.append({
+            "id": r["region_id"],
+            "name": r["name"],
+            "group": r["type"],
+            "anchor": r.get("anchor") or [(min(lons) + max(lons)) / 2, (min(lats) + max(lats)) / 2],
+            "bbox": [min(lons), min(lats), max(lons), max(lats)],
+            "area_km2": r.get("hydrobasins_sub_area_km2"),
+        })
+    return regions
+
+
+REGIONS = build_regions()
+
+SERIES = {(s["region"], s["variable"]): s for s in CHART["series"]}
+REGION_IDS = {r["id"] for r in REGIONS}
+
+ML_PROVENANCE = {
+    "dataset": "NASA GLDAS Noah Land Surface Model L4 monthly 0.25 degree, v2.1 (model estimates, not observations)",
+    "is_development_data": False,
+    "run_id": RUN_ID,
+    "review_status": REVIEW_STATUS,
+}
 
 @app.get("/api/health")
 def health():
@@ -41,22 +141,11 @@ def variables():
     evapotranspiration) with their units and plain-language descriptions."""
     return load_json("variables.json")
 
-@app.get("/api/regions",
-         response_model=list[Region], 
-         summary="List the regions")
-def regions(
-    group: Optional[str] = Query(
-        None,
-        description="Only show regions in this group. Leave empty to see all regions.",
-        examples=["Africa"],
-    ),
-):
-    """Returns each region with its map box (`bbox`), centre point and descriptions.
-    Groups: North America, South America, Oceania, Africa."""
-    items = load_json("regions.json")
-    if group:
-        items = [r for r in items if r["group"].lower() == group.lower()]
-    return items
+@app.get("/api/regions", response_model=list[Region])
+def get_regions(group: Optional[str] = Query(None, description="Filter by region type, for example river_basin")):
+    if group is None:
+        return REGIONS
+    return [r for r in REGIONS if r["group"] == group]
 
 @app.get("/api/glossary",
          response_model=list[GlossaryEntry], 
@@ -98,41 +187,49 @@ def timeseries(
 ):
     """Returns one list of monthly values per region, in the variable's unit."""
     variables_by_id = {v["id"]: v for v in load_json("variables.json")}
-    region_ids = {r["id"] for r in load_json("regions.json")}
-
+    
     if variable not in variables_by_id:
         raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
     for r in region:
-        if r not in region_ids:
+        if r not in REGION_IDS:
             raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
 
     try:
-        start_date = pd.Timestamp(start) if start else TABLE["date"].min()
-        end_date = pd.Timestamp(end) if end else TABLE["date"].max()
+        start_ym = pd.Timestamp(start).strftime("%Y-%m") if start else None
+        end_ym = pd.Timestamp(end).strftime("%Y-%m") if end else None
     except ValueError:
         raise HTTPException(422, "start and end must look like 2010-01")
-    if start_date > end_date:
+    if start_ym and end_ym and start_ym > end_ym:
         raise HTTPException(422, "start must not be after end")
 
     series = []
     for r in region:
-        rows = TABLE[(TABLE["variable"] == variable) & (TABLE["region"] == r)]
-        rows = rows[(rows["date"] >= start_date) & (rows["date"] <= end_date)]
+        found = SERIES.get((r, variable))
+        if found is None:
+            raise HTTPException(404, f"No data for region '{r}' and variable '{variable}'")
+        unit = found["unit"]
+        points = [
+            p for p in found["series"]
+            if (not start_ym or p["date"][:7] >= start_ym) and (not end_ym or p["date"][:7] <= end_ym)
+        ]
         series.append(
             {
                 "region": r,
-                "dates": rows["date"].dt.strftime("%Y-%m-%d").tolist(),
-                "values": [None if pd.isna(v) else float(v) for v in rows["value"]],
+                "dates": [p["date"] for p in points],
+                "values": [p.get("value") for p in points],
+                "anomalies": [p.get("anomaly") for p in points],
+                "fitted": [p.get("fitted") for p in points],
+                "trend_component": [p.get("trend_component") for p in points],
             }
         )
-
+    all_dates = sorted(d for s in series for d in s["dates"])
     return {
         "variable": variable,
-        "unit": variables_by_id[variable]["unit"],
-        "start": start_date.strftime("%Y-%m-%d"),
-        "end": end_date.strftime("%Y-%m-%d"),
+        "unit": unit,
+        "start": all_dates[0] if all_dates else (start or ""),
+        "end": all_dates[-1] if all_dates else (end or ""),
         "series": series,
-        "provenance": {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True},
+        "provenance": ML_PROVENANCE,
     }
 
 def check_request(variable, regions_wanted, start, end):

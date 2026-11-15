@@ -1,4 +1,4 @@
-from typing import Literal
+from typing import Literal, Optional
 
 from pydantic import BaseModel, Field
 
@@ -16,12 +16,12 @@ class Variable(BaseModel):
 class Region(BaseModel):
     id: str
     name: str
-    group: str = Field(description="Continent or climate group, used by the filter")
-    bbox: list[float] = Field(description="Map box as [west, south, east, north] in degrees")
-    centroid: list[float] = Field(description="Centre point as [longitude, latitude]")
-    boundary_type: Literal["bbox_approximation", "polygon"]
-    description: str
-    why_it_matters: str
+    group: str
+    anchor: list[float]
+    bbox: list[float]
+    area_km2: Optional[float] = None
+    description: Optional[str] = None
+    why_it_matters: Optional[str] = None
 
 
 class GlossaryEntry(BaseModel):
@@ -35,13 +35,17 @@ class GlossaryEntry(BaseModel):
 class Provenance(BaseModel):
     dataset: str = Field(description="Where the numbers come from")
     is_development_data: bool = Field(description="True means the numbers are FAKE sample data")
+    run_id: Optional[str] = Field(default=None, description="Which analysis run produced the numbers")
+    review_status: Optional[str] = Field(default=None, description="For example provisional_pending_scientific_review")
 
 
 class RegionSeries(BaseModel):
     region: str
     dates: list[str] = Field(description="First day of each month, YYYY-MM-DD")
     values: list[float | None] = Field(description="One value per date; null where data is missing")
-
+    anomalies: Optional[list[float | None]] = Field(default=None, description="Value minus that calendar month's typical value (removes the seasons)")
+    fitted: Optional[list[float | None]] = Field(default=None, description="The trend model's fitted line, seasons included")
+    trend_component: Optional[list[float | None]] = Field(default=None, description="Just the trend part of the fit, for drawing the trend line")
 
 class TimeseriesResponse(BaseModel):
     variable: str
@@ -68,3 +72,52 @@ class TrendResponse(BaseModel):
     variable: str
     result: TrendResult
     provenance: Provenance
+
+
+class MlTrend(BaseModel):
+    region: str
+    variable: str
+    unit: str
+    status: str
+    start: str
+    end: str
+    n_observations: int
+    expected_months: int
+    coverage: float
+    max_gap_months: int
+    slope_per_decade: Optional[float] = None
+    ci_low: Optional[float] = None
+    ci_high: Optional[float] = None
+    p_value: Optional[float] = None
+    q_value: Optional[float] = None
+    direction: Optional[str] = None
+    significant: Optional[bool] = None
+    evidence: Optional[str] = None
+    standardized_trend: Optional[float] = None
+    fitted_period_change: Optional[float] = None
+    hac_lags: Optional[int] = None
+    method: str
+
+
+class Hotspot(MlTrend):
+    magnitude: float
+
+
+class Opposite(BaseModel):
+    variable: str
+    decreasing: MlTrend
+    increasing: MlTrend
+
+
+class Twin(BaseModel):
+    region_a: str
+    region_b: str
+    distance: float
+
+
+class DiscoveriesResponse(BaseModel):
+    run_id: str
+    review_status: str
+    hotspots: list[Hotspot]
+    opposites: list[Opposite]
+    twins: list[Twin]
