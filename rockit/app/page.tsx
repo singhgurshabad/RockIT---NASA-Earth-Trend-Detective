@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useCallback, useEffect, useRef, useState } from "react";
 import { BootGate, useAppData } from "@/components/AppData";
 import Console from "@/components/Console";
 import ExplorerGlobe from "@/components/ExplorerGlobe";
@@ -38,8 +38,20 @@ function errorText(error: unknown): string {
   return error instanceof ApiError ? error.message : "Something went wrong.";
 }
 
-export default function Explore() {
+export default function ExplorePage() {
+  // useSearchParams needs a Suspense boundary so the page can still be pre-built.
+  return (
+    <Suspense fallback={null}>
+      <Explore />
+    </Suspense>
+  );
+}
+
+function Explore() {
   const router = useRouter();
+  // The settings in the address, as Next.js sees them. (Reading window.location directly can be
+  // one step behind right after a link from another page, which made "View analysis" do nothing.)
+  const search = useSearchParams().toString();
   const { boot, retry } = useAppData();
   const [draft, setDraft] = useState<Draft | null>(null);
 
@@ -103,7 +115,7 @@ export default function Explore() {
   useEffect(() => {
     if (!ready || draft) return;
     const { meta, regions, variables } = ready;
-    const query = readExploreQuery(window.location.search);
+    const query = readExploreQuery(search);
     const known = (ids: string[], list: { id: string }[]) => ids.filter((id) => list.some((x) => x.id === id));
     if (query) {
       const regionIds = known(query.regions, regions).slice(0, meta.max_regions_per_run);
@@ -130,7 +142,7 @@ export default function Explore() {
       start: meta.period.start,
       end: meta.period.end,
     });
-  }, [ready, draft, startRun]);
+  }, [ready, draft, startRun, search]);
 
   // Keep the address in step with the results on screen, so the link can be shared.
   useEffect(() => {

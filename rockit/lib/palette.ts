@@ -1,9 +1,9 @@
-// Colours that carry meaning in charts and on the map.
+// Colors that carry meaning in charts and on the map.
 //
-// Series colours identify a region. A region takes a slot when it is selected and keeps
+// Series colors identify a region. A region takes a slot when it is selected and keeps
 // it until it is removed, so removing one region never repaints the others. The four
-// colours were checked for colour-blind separation against the app's dark surface, and
-// every series also gets its own dash pattern and number, so colour is never the only cue.
+// colors were checked for color-blind separation against the app's dark surface, and
+// every series also gets its own dash pattern and number, so color is never the only cue.
 
 export const SERIES = [
   { slot: 1, color: "#3987e5", dash: "", name: "blue" },
@@ -17,7 +17,7 @@ export function seriesStyle(slot: number) {
 }
 
 // Diverging scale for "how did this region trend": blue = falling, red = rising,
-// neutral grey = close to no change. Used for the map's trend colouring.
+// neutral grey = close to no change. Used for the map's trend coloring.
 export const DIVERGING = {
   classes: ["#2f6fc0", "#4f8ad4", "#86a9d6", "#5b6472", "#d99a8f", "#e07a70", "#d9534f"],
   // Class edges in standard deviations per decade (standardized trend).
@@ -32,7 +32,7 @@ export function divergingClass(value: number | null | undefined): number {
   return index;
 }
 
-// One colour per variable, used for icons, tabs and accents (never for chart series, which
+// One color per variable, used for icons, tabs and accents (never for chart series, which
 // belong to regions). Warm for heat, blue for rain, green for soil, teal for water returning to air.
 export const VARIABLE_TINT: Record<string, string> = {
   surface_temperature: "#ff8a5c",

@@ -136,7 +136,7 @@ export default function PatternContext({ part, config, analysis, variables, regi
                   About the groups: {data.clustering.algorithm} with {data.clustering.k} groups, fitted on {data.clustering.n_training_regions} regions.{" "}
                   {top && ordered.length === 2 && (
                     <>
-                      The two centres differ most in {(labels[top.feature] ?? top.feature).toLowerCase()} trend ({signed(ordered[0].features[top.feature], 2)} against {signed(ordered[1].features[top.feature], 2)} standard deviations per decade).{" "}
+                      The two centers differ most in {(labels[top.feature] ?? top.feature).toLowerCase()} trend ({signed(ordered[0].features[top.feature], 2)} against {signed(ordered[1].features[top.feature], 2)} standard deviations per decade).{" "}
                     </>
                   )}
                   {ordered.map((c) => `${names[c.cluster]}: ${c.size} regions`).join(". ")}.

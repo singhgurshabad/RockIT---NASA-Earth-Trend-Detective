@@ -1,7 +1,7 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 import { BootGate, useAppData } from "@/components/AppData";
 import Signals from "@/components/Signals";
 import Twins from "@/components/Twins";
@@ -9,8 +9,17 @@ import { ApiError, getClusters, isAbort } from "@/lib/api";
 import { exploreHref } from "@/lib/links";
 import type { ApiClusters } from "@/lib/types";
 
-export default function Discover() {
+export default function DiscoverPage() {
+  return (
+    <Suspense fallback={null}>
+      <Discover />
+    </Suspense>
+  );
+}
+
+function Discover() {
   const router = useRouter();
+  const askedTwin = useSearchParams().get("twin");
   const { boot, retry } = useAppData();
   const [twinRegion, setTwinRegion] = useState<string | null>(null);
   const [clusters, setClusters] = useState<{ status: "loading" | "ok" | "error"; data: ApiClusters | null; message: string | null }>({ status: "loading", data: null, message: null });
@@ -19,10 +28,10 @@ export default function Discover() {
 
   useEffect(() => {
     if (!ready || twinRegion) return;
-    const asked = new URLSearchParams(window.location.search).get("twin");
+    const asked = askedTwin;
     const fallback = ready.regions.find((r) => r.id === "alaska_tundra") ?? ready.regions[0];
     setTwinRegion(ready.regions.some((r) => r.id === asked) ? (asked as string) : fallback?.id ?? null);
-  }, [ready, twinRegion]);
+  }, [ready, twinRegion, askedTwin]);
 
   useEffect(() => {
     if (!ready) return;

@@ -10,7 +10,19 @@ import Icon from "./Icon";
 
 // The basemap is two small Natural Earth files served by this app (public/basemap).
 // No tile service and no access token: the globe works offline and during a live demo.
+// Satellite imagery: NASA Blue Marble (shaded relief and bathymetry), served free by NASA GIBS.
+// GIBS accepts the time part of the address in two forms; if the first fails we switch to the second.
+// If neither loads, the Natural Earth layers underneath stay visible, so the globe never goes blank.
+const IMAGERY_TILES = [
+  "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+  "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/EPSG3857_500m/{z}/{y}/{x}.jpeg",
+  "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_ShadedRelief_Bathymetry/default/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+  "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/GoogleMapsCompatible_Level8/{z}/{y}/{x}.jpeg",
+  "https://gibs.earthdata.nasa.gov/wmts/epsg3857/best/BlueMarble_NextGeneration/default/EPSG3857_500m/{z}/{y}/{x}.jpeg",
+];
+
 const ATTRIBUTION =
+  'Imagery: <a href="https://earthdata.nasa.gov/gibs" target="_blank" rel="noreferrer">NASA Blue Marble via GIBS</a>. ' +
   'Basemap: <a href="https://www.naturalearthdata.com/" target="_blank" rel="noreferrer">Natural Earth</a>. ' +
   "Region outlines: HydroSHEDS HydroBASINS, RESOLVE Ecoregions 2017 (CC BY 4.0), US EPA, US Census Bureau, ICIMOD-associated HKH boundary. " +
   "Outlines are simplified for display.";
@@ -18,8 +30,8 @@ const ATTRIBUTION =
 const HOME_CENTER: [number, number] = [12, 18];
 
 /**
- * The zoom at which the whole globe just fits inside a box of this size, for a view centred
- * at `latitude`. MapLibre draws the globe larger the further the centre is from the equator
+ * The zoom at which the whole globe just fits inside a box of this size, for a view centerd
+ * at `latitude`. MapLibre draws the globe larger the further the center is from the equator
  * (to stay consistent with flat-map zoom levels), so the latitude has to be taken out again.
  */
 function wholeGlobeZoom(element: HTMLElement | null, latitude: number): number {
@@ -50,16 +62,27 @@ const STYLE: StyleSpecification = {
     land: { type: "geojson", data: "/basemap/land.geojson" },
     borders: { type: "geojson", data: "/basemap/borders.geojson" },
     graticule: { type: "geojson", data: graticule() },
+    imagery: { type: "raster", tiles: [IMAGERY_TILES[0]], tileSize: 256, maxzoom: 8 },
   },
   layers: [
-    { id: "ocean", type: "background", paint: { "background-color": "#060d1a" } },
-    { id: "graticule", type: "line", source: "graticule", paint: { "line-color": "#12213a", "line-width": 0.6 } },
-    { id: "land", type: "fill", source: "land", paint: { "fill-color": "#13233c", "fill-antialias": true } },
-    { id: "coast", type: "line", source: "land", paint: { "line-color": "#31496f", "line-width": 0.6 } },
-    { id: "borders", type: "line", source: "borders", paint: { "line-color": "#22365a", "line-width": 0.5 } },
+    { id: "ocean", type: "background", paint: { "background-color": "#0b56b8" } },
+    { id: "graticule", type: "line", source: "graticule", paint: { "line-color": "#4d9bf0", "line-opacity": 0.35, "line-width": 0.6 } },
+    { id: "land", type: "fill", source: "land", paint: { "fill-color": "#2fa35f", "fill-antialias": true } },
+    { id: "coast", type: "line", source: "land", paint: { "line-color": "#bff0c9", "line-opacity": 0.7, "line-width": 0.7 } },
+    { id: "borders", type: "line", source: "borders", paint: { "line-color": "#0f6b3c", "line-width": 0.5 } },
+    {
+      id: "imagery",
+      type: "raster",
+      source: "imagery",
+      paint: { "raster-saturation": 0.45, "raster-contrast": 0.15, "raster-brightness-min": 0.04, "raster-fade-duration": 300 },
+    },
+    { id: "graticule-top", type: "line", source: "graticule", paint: { "line-color": "#9ec3ff", "line-opacity": 0.08, "line-width": 0.6 } },
+    { id: "borders-top", type: "line", source: "borders", paint: { "line-color": "#e6eefc", "line-opacity": 0.16, "line-width": 0.5 } },
   ],
   sky: {
-    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 0.55, 4, 0.35, 6, 0],
+    "sky-color": "#0b1e44",
+    "horizon-color": "#5aa9ff",
+    "atmosphere-blend": ["interpolate", ["linear"], ["zoom"], 0, 1, 3, 0.85, 5, 0.3, 6, 0],
   },
 };
 
@@ -195,7 +218,33 @@ export default function ExplorerGlobe(props: Props) {
         m.on("load", () => {
           if (!cancelled) setReady(true);
         });
+        let imageryAttempt = 0;
+        let imageryErrors = 0;
         m.on("error", (event) => {
+          const sourceId = (event as unknown as { sourceId?: string }).sourceId;
+          if (sourceId === "imagery") {
+            imageryErrors += 1;
+            if (imageryErrors < 4) return; // a single missing tile is normal
+            imageryErrors = 0;
+            imageryAttempt += 1;
+            // Swap in the next imagery address, or drop the imagery and show the drawn Earth underneath.
+            window.setTimeout(() => {
+              try {
+                if (m.getLayer("imagery")) m.removeLayer("imagery");
+                if (m.getSource("imagery")) m.removeSource("imagery");
+                if (imageryAttempt < IMAGERY_TILES.length) {
+                  m.addSource("imagery", { type: "raster", tiles: [IMAGERY_TILES[imageryAttempt]], tileSize: 256, maxzoom: 8 });
+                  m.addLayer(
+                    { id: "imagery", type: "raster", source: "imagery", paint: { "raster-saturation": 0.45, "raster-contrast": 0.15, "raster-fade-duration": 300 } },
+                    "graticule-top",
+                  );
+                }
+              } catch {
+                // The map was removed while we waited. Nothing to do.
+              }
+            }, 0);
+            return;
+          }
           // A missing basemap file is not fatal: the region outlines still draw.
           console.warn("Map resource problem:", event?.error?.message ?? event);
         });
@@ -227,13 +276,13 @@ export default function ExplorerGlobe(props: Props) {
       type: "fill",
       source: "regions",
       paint: {
-        "fill-color": ["case", [">", slotState, 0], slotColor, [">=", trendState, 0], trendColor, "#5f86bd"],
+        "fill-color": ["case", [">", slotState, 0], slotColor, [">=", trendState, 0], trendColor, "#ffffff"],
         "fill-opacity": [
           "case",
-          [">", slotState, 0], 0.4,
+          [">", slotState, 0], 0.6,
           ["boolean", ["feature-state", "tfill"], false], 0.72,
-          ["boolean", ["feature-state", "hover"], false], 0.26,
-          0.09,
+          ["boolean", ["feature-state", "hover"], false], 0.3,
+          0.08,
         ],
       },
     });
@@ -248,10 +297,11 @@ export default function ExplorerGlobe(props: Props) {
           [">", slotState, 0], slotColor,
           ["boolean", ["feature-state", "picked"], false], "#f2f6fb",
           [">=", trendState, 0], trendColor,
-          ["boolean", ["feature-state", "hover"], false], "#b9d2f2",
-          "#6f93c7",
+          ["boolean", ["feature-state", "hover"], false], "#ffffff",
+          "#ffffff",
         ],
-        "line-width": ["case", ["boolean", ["feature-state", "picked"], false], 2.2, ["boolean", ["feature-state", "hover"], false], 1.8, 1],
+        "line-width": ["case", ["boolean", ["feature-state", "picked"], false], 2.4, ["boolean", ["feature-state", "hover"], false], 2.2, 1.5],
+        "line-opacity": ["case", [">", slotState, 0], 1, ["boolean", ["feature-state", "picked"], false], 1, 0.95],
       },
     });
     m.addLayer({
@@ -294,7 +344,7 @@ export default function ExplorerGlobe(props: Props) {
     });
   }, [ready, geojson]);
 
-  // ---- paint selection and trend colours ----------------------------------------
+  // ---- paint selection and trend colors ----------------------------------------
   useEffect(() => {
     const m = map.current;
     if (!m || !ready || !geojson || !m.getSource("regions")) return;
@@ -378,7 +428,7 @@ export default function ExplorerGlobe(props: Props) {
     const points = frame.map((id) => byId.get(id)?.label_point).filter((p): p is [number, number] => Boolean(p));
     if (points.length > 1) {
       const { center, spread } = middleOf(points);
-      const closer = Math.min(1.2, Math.max(0, Math.log2(35 / Math.max(spread, 8))));
+      const closer = Math.min(0.5, Math.max(0, Math.log2(35 / Math.max(spread, 8))));
       m.easeTo({ center, zoom: wholeGlobeZoom(box.current, center[1]) + closer, duration: 1300 });
       return;
     }
@@ -393,7 +443,8 @@ export default function ExplorerGlobe(props: Props) {
     const center = camera?.center ?? fallback;
     const whole = wholeGlobeZoom(box.current, (south + north) / 2);
     const wanted = (typeof camera?.zoom === "number" ? camera.zoom : whole) - 0.9;
-    m.easeTo({ center, zoom: Math.min(whole + 1.2, Math.max(whole, wanted)), duration: 1300 });
+    // Stay far enough out that the whole planet, and the stars around it, stay in view.
+    m.easeTo({ center, zoom: Math.min(whole + 0.45, Math.max(whole, wanted)), duration: 1300 });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [ready, frameSignature, frameKey, byId]);
 
@@ -404,9 +455,9 @@ export default function ExplorerGlobe(props: Props) {
   const trendMode = colorBy !== "selection";
 
   return (
-    <div className="absolute inset-0 overflow-hidden bg-void">
+    <div className="globe-space absolute inset-0 overflow-hidden">
       {/* MapLibre's own stylesheet makes this element position: relative, so it is sized with height and width, not inset. */}
-      <div ref={box} className="h-full w-full" role="application" aria-label="Globe of the 21 study regions. Click a region outline to add or remove it. The region list beside the globe does the same thing." />
+      <div ref={box} className="relative z-[1] h-full w-full" role="application" aria-label="Globe of the 21 study regions. Click a region outline to add or remove it. The region list beside the globe does the same thing." />
 
       {!ready && !failed && (
         <div className="absolute inset-0 grid place-items-center text-ink-3">
@@ -431,18 +482,18 @@ export default function ExplorerGlobe(props: Props) {
         </div>
       )}
 
-      {/* colour mode */}
+      {/* color mode */}
       <div className="absolute left-3 top-3 z-10 flex max-w-[calc(100%-64px)] flex-wrap items-center gap-2 sm:left-4 sm:top-4">
-        <label htmlFor="color-by" className="sr-only">Colour regions by</label>
+        <label htmlFor="color-by" className="sr-only">Color regions by</label>
         <select
           id="color-by"
           className="field !min-h-[36px] !w-auto !bg-[rgba(11,21,36,0.92)] !text-[13.5px]"
           value={colorBy}
           onChange={(event) => props.onColorBy(event.target.value)}
         >
-          <option value="selection">Colour: my selection</option>
+          <option value="selection">Color: my selection</option>
           {variables.map((v) => (
-            <option key={v.id} value={v.id}>Colour: {v.label.toLowerCase()} trend</option>
+            <option key={v.id} value={v.id}>Color: {v.label.toLowerCase()} trend</option>
           ))}
         </select>
         <button
@@ -462,8 +513,8 @@ export default function ExplorerGlobe(props: Props) {
             {selected.length === 0 ? "Click a region outline to select it." : canAdd ? "Click another outline to compare, or a selected one to remove it." : "Four regions selected. Remove one to add another."}
           </p>
         )}
-        {trendMode && props.mapTrendsError && <p className="text-ink">Trend colours could not be loaded. {props.mapTrendsError}</p>}
-        {trendMode && !props.mapTrendsError && !mapTrends && <p>Loading trend colours</p>}
+        {trendMode && props.mapTrendsError && <p className="text-ink">Trend colors could not be loaded. {props.mapTrendsError}</p>}
+        {trendMode && !props.mapTrendsError && !mapTrends && <p>Loading trend colors</p>}
         {trendMode && mapTrends && trendVariable && (
           <>
             <p className="text-ink">{trendVariable.label} trend, {mapTrends.scope?.start.slice(0, 4)} to {mapTrends.scope?.end.slice(0, 4)}</p>

@@ -5,9 +5,9 @@ export function featureLabels(variables: { id: string; label: string }[]): Recor
 }
 
 /**
- * Plain names for the K-means groups, derived from the fitted centres.
- * Cluster numbers are arbitrary, so with two groups each is named by where its centre sits
- * on the feature that separates the centres most. With more groups they are simply numbered.
+ * Plain names for the K-means groups, derived from the fitted centers.
+ * Cluster numbers are arbitrary, so with two groups each is named by where its center sits
+ * on the feature that separates the centers most. With more groups they are simply numbered.
  */
 export function groupNames(
   centers: ApiClusterCenter[],

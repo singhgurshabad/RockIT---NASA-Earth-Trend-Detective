@@ -8,9 +8,9 @@
   One typeface (Archivo) in two widths: wide for headings, normal for everything else.
 */
 :root {
-  --void: #04070d;
-  --deep: #070d18;
-  --panel: #0b1524;
+  --void: #050a16;
+  --deep: rgba(9, 17, 33, 0.72);
+  --panel: #0d182b;
   --raised: #111f34;
   --line: #18263c;
   --line-strong: #2a3b58;
@@ -31,7 +31,14 @@
   }
   body {
     margin: 0;
-    background: var(--void);
+    /* Deep space: navy at the top, a violet glow to one side, teal low down. */
+    background:
+      radial-gradient(1100px 620px at 12% -8%, rgba(52, 104, 220, 0.30), transparent 62%),
+      radial-gradient(900px 520px at 100% 6%, rgba(128, 82, 214, 0.20), transparent 60%),
+      radial-gradient(1000px 700px at 85% 70%, rgba(40, 150, 170, 0.12), transparent 60%),
+      radial-gradient(900px 700px at 0% 100%, rgba(52, 80, 190, 0.16), transparent 60%),
+      linear-gradient(180deg, #060c1b 0%, #081329 45%, #060d1c 100%);
+    background-color: #060c1b;
     color: var(--ink);
     font-family: "Archivo Variable", system-ui, -apple-system, "Segoe UI", sans-serif;
     font-size: 15px;
@@ -182,15 +189,8 @@
   .hero-console { grid-area: console; padding: 16px 44px 30px 40px; }
 }
 
-/* ---- colour and atmosphere ------------------------------------------------------ */
+/* ---- color and atmosphere ------------------------------------------------------ */
 
-/* A soft glow behind the globe, like the Earth seen from orbit: blue on the left, teal above. */
-.hero-globe-map {
-  background:
-    radial-gradient(60% 55% at 50% 50%, rgba(64, 132, 255, 0.16), transparent 70%),
-    radial-gradient(40% 35% at 80% 10%, rgba(63, 208, 192, 0.10), transparent 70%),
-    var(--void);
-}
 .hero-globe-map .maplibregl-map, .hero-globe-map .maplibregl-canvas { background: transparent !important; }
 
 /* Headers of the Discover and Method pages. */
@@ -202,7 +202,7 @@
     radial-gradient(50% 120% at 100% 0%, rgba(255, 138, 92, 0.08), transparent 60%);
 }
 
-/* One-click examples on the first screen. Each carries its variable's colour. */
+/* One-click examples on the first screen. Each carries its variable's color. */
 .example-chip {
   display: inline-flex; align-items: center; gap: 8px;
   min-height: 32px; padding: 3px 11px; border-radius: 999px;
@@ -224,3 +224,72 @@
 .btn-primary:disabled { box-shadow: none; }
 /* The first section under a page header continues it rather than starting a new band. */
 .page-head + .section { border-top: 0; padding-top: 12px; }
+
+/* Faint stars across the whole page, fixed behind everything. */
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background: url("/stars-faint.svg") center / cover no-repeat;
+  opacity: 0.7;
+}
+
+/* The globe floats in space: stars, a couple of faint galaxies, and a soft blue haze around the Earth. */
+.globe-space {
+  background:
+    radial-gradient(46% 50% at 50% 50%, rgba(60, 150, 255, 0.42), rgba(60, 150, 255, 0.14) 58%, transparent 74%),
+    url("/stars.svg") center / cover no-repeat,
+    radial-gradient(120% 120% at 30% 20%, #0a1733 0%, #050a17 60%, #03060f 100%);
+}
+.globe-space::after {
+  /* a second star layer that slowly brightens and dims: a gentle twinkle */
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background: url("/stars.svg") 37% 61% / 140% no-repeat;
+  opacity: 0;
+  mix-blend-mode: screen;
+  animation: twinkle 7s ease-in-out infinite;
+}
+@keyframes twinkle { 0%, 100% { opacity: 0; } 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .globe-space::after { animation: none; } }
+
+/* Panels sit on the space background as frosted glass. */
+.hero-console, .hero-intro { background: linear-gradient(180deg, rgba(10, 20, 40, 0.55), rgba(8, 15, 30, 0.35)); }
+@media (min-width: 1024px) {
+  .hero-intro { border-left: 1px solid var(--line); }
+  .hero-console { border-left: 1px solid var(--line); }
+}
+
+/* ---- header ------------------------------------------------------------------ */
+.topbar {
+  background: linear-gradient(90deg, rgba(10, 22, 52, 0.92), rgba(24, 16, 58, 0.9) 55%, rgba(8, 34, 52, 0.92));
+  border-bottom: 2px solid transparent;
+  border-image: linear-gradient(90deg, #5aa9ff, #a47bff 40%, #ff8a5c 70%, #3fd0c0) 1;
+}
+.brand-it { background: linear-gradient(90deg, #5aa9ff, #3fd0c0); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.nav-pill {
+  white-space: nowrap; border-radius: 999px; padding: 7px 16px;
+  font-size: 14.5px; font-weight: 600; color: var(--ink-2); text-decoration: none;
+  transition: background-color 150ms, color 150ms;
+}
+.nav-pill:hover { color: var(--ink); background: rgba(255, 255, 255, 0.08); }
+.nav-pill-active, .nav-pill-active:hover { color: #04070d; background: linear-gradient(90deg, #7cc4ff, #6ee0d0); }
+@media (max-width: 480px) { .nav-pill { padding: 6px 10px; font-size: 13.5px; } }
+
+/* ---- more color ----------------------------------------------------------------- */
+h1 {
+  background: linear-gradient(90deg, #ffffff 0%, #bfe0ff 45%, #9fe8dc 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.section-title { display: inline-block; padding-bottom: 8px; background: linear-gradient(90deg, #5aa9ff, #a47bff 50%, #ff8a5c) left bottom / 72px 3px no-repeat; }
+.section { border-top-color: rgba(120, 150, 220, 0.18); }
+.segmented > button[aria-pressed="true"] { background: linear-gradient(180deg, rgba(90, 169, 255, 0.28), rgba(164, 123, 255, 0.2)); box-shadow: inset 0 0 0 1px rgba(140, 180, 255, 0.55); }
+.btn:hover:not(:disabled) { border-color: #6fb3ff; background: rgba(90, 169, 255, 0.12); }
+.badge { border-color: rgba(140, 170, 240, 0.4); }
+.btn-primary { background: linear-gradient(90deg, #5aa9ff, #3fd0c0); color: #03131b; box-shadow: 0 8px 24px -8px rgba(63, 208, 192, 0.7); }
+.btn-primary:hover:not(:disabled) { background: linear-gradient(90deg, #7cbcff, #5fe0d1); }

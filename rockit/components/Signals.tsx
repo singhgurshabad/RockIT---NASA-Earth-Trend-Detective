@@ -95,7 +95,7 @@ export default function Signals({ regions, variables, running, onExplore }: Prop
                             <span className="block text-[12.5px] text-ink-3">{signed(h.ci_low, d)} to {signed(h.ci_high, d)}</span>
                           </span>
                           <button className="btn !min-h-[36px]" disabled={running} onClick={() => onExplore([h.region], variable)} aria-label={`Open ${nameOf(h.region)}, ${labels[variable]}, in the analysis`}>
-                            <Icon name="play" size={14} /> Open
+                            <Icon name="play" size={14} /> View analysis
                           </button>
                         </li>
                       ))}

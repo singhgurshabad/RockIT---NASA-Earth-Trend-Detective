@@ -338,7 +338,7 @@ export type GeoJsonCollection = {
 
 // ---- app state ---------------------------------------------------------------
 
-/** A selected region keeps its colour slot (1 to 4) for as long as it stays selected. */
+/** A selected region keeps its color slot (1 to 4) for as long as it stays selected. */
 export type SelectedRegion = { id: string; slot: number };
 
 /** What the controls currently show. Not necessarily what the results below were run with. */

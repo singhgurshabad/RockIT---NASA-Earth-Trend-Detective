@@ -1,7 +1,7 @@
 import { monthsBetween } from "./format";
 import type { ApiMeta, Draft, RunConfig, SelectedRegion } from "./types";
 
-/** Lowest colour slot not in use. */
+/** Lowest color slot not in use. */
 export function nextSlot(regions: SelectedRegion[], max: number): number | null {
   for (let slot = 1; slot <= max; slot += 1) {
     if (!regions.some((r) => r.slot === slot)) return slot;

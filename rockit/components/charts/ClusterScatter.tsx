@@ -11,7 +11,7 @@ export type ScatterPoint = {
   name: string;
   cluster: number;
   values: Record<string, number>;
-  /** Colour slot if the region is part of the current run, otherwise 0. */
+  /** Color slot if the region is part of the current run, otherwise 0. */
   slot: number;
   validation: boolean;
 };
@@ -208,7 +208,7 @@ export default function ClusterScatter({ points, centers, features, labels, grou
         })}
         <li className="flex items-center gap-2">
           <svg width="14" height="14" aria-hidden="true"><line x1="1" x2="13" y1="7" y2="7" stroke={INK.secondary} strokeWidth="1.5" /><line x1="7" x2="7" y1="1" y2="13" stroke={INK.secondary} strokeWidth="1.5" /></svg>
-          group centre
+          group center
         </li>
       </ul>
     </div>

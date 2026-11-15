@@ -102,7 +102,7 @@ export default function Method({ meta, variables, glossary }: { meta: ApiMeta; v
               ))}
             </ul>
             <p className="mt-2 text-[13px] text-ink-3">
-              The globe draws simplified copies of these outlines. The analysis used the full-resolution shapes. Basemap: Natural Earth.
+              The globe draws simplified copies of these outlines. The analysis used the full-resolution shapes. Globe imagery: NASA Blue Marble via GIBS, with Natural Earth outlines underneath. The imagery is a backdrop only; it is not part of the analysis.
             </p>
 
             <h3 className="mt-9 text-[18px]">Reproducing this</h3>

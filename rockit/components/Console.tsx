@@ -174,7 +174,7 @@ export default function Console({ meta, regions, variables, draft, onChange, pro
         </div>
         {!full && (
           <p className="mt-2 text-[13px] text-ink-3">
-            A custom window is re-analysed on request with the reviewed run&apos;s method (at least {meta.min_window_months} months). The full record uses the reviewed results as they are.
+            A custom window is re-analyzed on request with the reviewed run&apos;s method (at least {meta.min_window_months} months). The full record uses the reviewed results as they are.
           </p>
         )}
       </section>
