@@ -129,6 +129,9 @@ ML_PROVENANCE = {
     "review_status": REVIEW_STATUS,
 }
 
+FULL_START, FULL_END = MANIFEST["source_metadata"]["period"]
+TREND_BY_KEY = {(t["region"], t["variable"]): t for t in TRENDS["results"]}
+
 @app.get("/api/health")
 def health():
     return {"status": "ok"}
@@ -192,7 +195,7 @@ def timeseries(
         raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
     for r in region:
         if r not in REGION_IDS:
-            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
+            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(REGION_IDS)}")
 
     try:
         start_ym = pd.Timestamp(start).strftime("%Y-%m") if start else None
@@ -259,11 +262,73 @@ def trend(
     end: Optional[str] = Query(None, description="Last month, as YYYY-MM", examples=["2024-12"]),
 ):
     """Returns the rate of change per decade for one variable in one region, with a 95% range and a significance test."""
-    var, start_date, end_date = check_request(variable, [region], start, end)
-    rows = TABLE[(TABLE["variable"] == variable) & (TABLE["region"] == region)]
-    rows = rows[(rows["date"] >= start_date) & (rows["date"] <= end_date)]
+    variable_ids = {v["id"] for v in load_json("variables.json")}
+    if variable not in variable_ids:
+        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variable_ids)}")
+    if region not in REGION_IDS:
+        raise HTTPException(404, f"Unknown region '{region}'. Options: {sorted(REGION_IDS)}")
+
     try:
-        result = compute_trend(rows["date"].tolist(), rows["value"].tolist(), var["unit"])
+        start_ym = pd.Timestamp(start).strftime("%Y-%m") if start else None
+        end_ym = pd.Timestamp(end).strftime("%Y-%m") if end else None
+    except ValueError:
+        raise HTTPException(422, "start and end must look like 2010-01")
+    if start_ym and end_ym and start_ym > end_ym:
+        raise HTTPException(422, "start must not be after end")
+
+    precomputed = TREND_BY_KEY.get((region, variable))
+    found = SERIES.get((region, variable))
+    if precomputed is None or found is None:
+        raise HTTPException(404, f"No data for region '{region}' and variable '{variable}'")
+
+    full_period = (start_ym is None or start_ym <= FULL_START) and (end_ym is None or end_ym >= FULL_END)
+    if full_period:
+        return {
+            "region": region,
+            "variable": variable,
+            "kind": "precomputed",
+            "note": f"Full-period analysis ({FULL_START} to {FULL_END}). Significance is corrected for testing many regions at once (q_value).",
+            "result": precomputed,
+            "provenance": ML_PROVENANCE,
+        }
+
+    points = [
+        p for p in found["series"]
+        if (not start_ym or p["date"][:7] >= start_ym) and (not end_ym or p["date"][:7] <= end_ym)
+    ]
+    try:
+        quick = compute_trend(
+            [pd.Timestamp(p["date"]) for p in points],
+            [float("nan") if p.get("value") is None else p["value"] for p in points],
+            precomputed["unit"],
+        )
     except ValueError as error:
         raise HTTPException(422, str(error))
-    return {"region": region, "variable": variable, "result": result, "provenance": PROVENANCE}
+
+    result = {
+        "region": region,
+        "variable": variable,
+        "unit": quick["unit"],
+        "status": "ok",
+        "start": points[0]["date"][:7],
+        "end": points[-1]["date"][:7],
+        "n_observations": quick["n_months"],
+        "expected_months": len(points),
+        "coverage": 1 - quick["missing_fraction"],
+        "slope_per_decade": quick["slope_per_decade"],
+        "ci_low": quick["confidence_interval"][0],
+        "ci_high": quick["confidence_interval"][1],
+        "confidence_interval": quick["confidence_interval"],
+        "p_value": quick["p_value"],
+        "direction": quick["direction"],
+        "significant": quick["significant"],
+        "method": quick["method"],
+    }
+    return {
+        "region": region,
+        "variable": variable,
+        "kind": "quick_estimate",
+        "note": "Quick estimate for a custom date range. Simpler than the full-period analysis and not corrected for testing many regions. Do not treat as a finding.",
+        "result": result,
+        "provenance": ML_PROVENANCE,
+    }

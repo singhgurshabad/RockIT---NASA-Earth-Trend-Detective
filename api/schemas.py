@@ -67,13 +67,6 @@ class TrendResult(BaseModel):
     missing_fraction: float = Field(description="Share of months in the range that had no data")
 
 
-class TrendResponse(BaseModel):
-    region: str
-    variable: str
-    result: TrendResult
-    provenance: Provenance
-
-
 class MlTrend(BaseModel):
     region: str
     variable: str
@@ -84,7 +77,8 @@ class MlTrend(BaseModel):
     n_observations: int
     expected_months: int
     coverage: float
-    max_gap_months: int
+    max_gap_months: Optional[int] = None
+    confidence_interval: Optional[list[float]] = None
     slope_per_decade: Optional[float] = None
     ci_low: Optional[float] = None
     ci_high: Optional[float] = None
@@ -121,3 +115,14 @@ class DiscoveriesResponse(BaseModel):
     hotspots: list[Hotspot]
     opposites: list[Opposite]
     twins: list[Twin]
+
+
+class TrendResponse(BaseModel):
+    region: str
+    variable: str
+    kind: Literal["precomputed", "quick_estimate"] = Field(
+        description="precomputed = the ML team's full-period analysis. quick_estimate = simple fallback for a custom date range."
+    )
+    note: str
+    result: MlTrend
+    provenance: Provenance
