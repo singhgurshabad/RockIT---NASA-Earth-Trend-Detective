@@ -1,4 +1,10 @@
 import json
+import os
+import re
+import uuid
+import numpy as np
+from functools import lru_cache
+from datetime import datetime, timezone
 import pandas as pd
 from pathlib import Path
 from typing import Optional
@@ -6,53 +12,10 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException, Path as PathParam, Query
 from fastapi.middleware.cors import CORSMiddleware
 
-from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance
-from trend_calc import compute_trend
+from schemas import GlossaryEntry, Region, Variable, TimeseriesResponse, TrendResponse, Provenance, DiscoveriesResponse, MapTrendsResponse
+from analysis_engine import analyze_trend
 
 DATA_DIR = Path(__file__).parent / "data"
-
-def validate_table(df):
-    """Stops the server at startup, with a clear message, if the data file is wrong."""
-    missing = [c for c in ["date", "region", "variable", "value", "unit"] if c not in df.columns]
-    if missing:
-        raise ValueError(f"Data file is missing columns: {missing}")
-    units = {v["id"]: v["unit"].replace("²", "2") for v in load_json("variables.json")}
-    regions = {r["id"] for r in load_json("regions.json")}
-    bad_vars = set(df["variable"]) - set(units)
-    bad_regions = set(df["region"]) - regions
-    if bad_vars:
-        raise ValueError(f"Unknown variable ids in data: {sorted(bad_vars)}")
-    if bad_regions:
-        raise ValueError(f"Unknown region ids in data: {sorted(bad_regions)}")
-    for var, expected in units.items():
-        found = set(df.loc[df["variable"] == var, "unit"])
-        if found and found != {expected}:
-            raise ValueError(f"Variable '{var}' has units {sorted(found)}, expected '{expected}'")
-    if df.duplicated(["date", "region", "variable"]).any():
-        raise ValueError("Data has duplicate (date, region, variable) rows")
-
-
-def load_table():
-    """Uses real files in data/processed/ if there are any, otherwise the fake sample."""
-    folder = DATA_DIR / "processed"
-    files = sorted(folder.glob("*.csv")) if folder.is_dir() else []
-    if files:
-        df = pd.concat([pd.read_csv(f, parse_dates=["date"]) for f in files], ignore_index=True)
-        validate_table(df)
-        return df, False
-    df = pd.read_csv(DATA_DIR / "dev" / "sample.csv", parse_dates=["date"])
-    return df, True
-
-
-TABLE, USING_SAMPLE = load_table()
-
-if USING_SAMPLE:
-    PROVENANCE = {"dataset": "DEVELOPMENT SAMPLE - fake data, NOT NASA data", "is_development_data": True}
-else:
-    PROVENANCE = {
-        "dataset": "NASA GLDAS Noah Land Surface Model L4 monthly 0.25 degree (model estimates)",
-        "is_development_data": False,
-    }
 
 app = FastAPI(
     title="RockIT API",
@@ -61,7 +24,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=[origin.strip() for origin in os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000").split(",") if origin.strip()],
     allow_methods=["GET"],
     allow_headers=["*"],
 )
@@ -80,9 +43,10 @@ MANIFEST = read_ml("manifest.json")
 TRENDS = read_ml("trends.json")
 CHART = read_ml("chart_data.json")
 DISCOVERIES = read_ml("discoveries.json")
+CLUSTERS = read_ml("clusters.json")
 
 RUN_ID = TRENDS["run_id"]
-for _name, _doc in [("manifest", MANIFEST), ("chart_data", CHART), ("discoveries", DISCOVERIES)]:
+for _name, _doc in [("manifest", MANIFEST), ("chart_data", CHART), ("discoveries", DISCOVERIES), ("clusters", CLUSTERS)]:
     if _doc["run_id"] != RUN_ID:
         raise RuntimeError(f"{_name}.json has run_id {_doc['run_id']}, expected {RUN_ID}")
 
@@ -128,6 +92,21 @@ ML_PROVENANCE = {
     "run_id": RUN_ID,
     "review_status": REVIEW_STATUS,
 }
+
+FULL_START, FULL_END = MANIFEST["source_metadata"]["period"]
+TREND_BY_KEY = {(t["region"], t["variable"]): t for t in TRENDS["results"]}
+
+def validate_window(start, end):
+    for value in (start, end):
+        if value is not None and not re.fullmatch(r"[0-9]{4}-(0[1-9]|1[0-2])(?:-01)?", value):
+            raise HTTPException(422, "Dates must be YYYY-MM (or the first day of a month).")
+    first, last = (start or FULL_START)[:7], (end or FULL_END)[:7]
+    if first > last:
+        raise HTTPException(422, "Start must not be after end.")
+    if first < FULL_START or last > FULL_END:
+        raise HTTPException(422, f"Available data spans {FULL_START} through {FULL_END}.")
+    return first, last
+
 
 @app.get("/api/health")
 def health():
@@ -192,15 +171,9 @@ def timeseries(
         raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
     for r in region:
         if r not in REGION_IDS:
-            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
+            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(REGION_IDS)}")
 
-    try:
-        start_ym = pd.Timestamp(start).strftime("%Y-%m") if start else None
-        end_ym = pd.Timestamp(end).strftime("%Y-%m") if end else None
-    except ValueError:
-        raise HTTPException(422, "start and end must look like 2010-01")
-    if start_ym and end_ym and start_ym > end_ym:
-        raise HTTPException(422, "start must not be after end")
+    start_ym, end_ym = validate_window(start, end)
 
     series = []
     for r in region:
@@ -232,25 +205,6 @@ def timeseries(
         "provenance": ML_PROVENANCE,
     }
 
-def check_request(variable, regions_wanted, start, end):
-    """Validates the inputs and returns (variable info, start date, end date)."""
-    variables_by_id = {v["id"]: v for v in load_json("variables.json")}
-    region_ids = {r["id"] for r in load_json("regions.json")}
-    if variable not in variables_by_id:
-        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variables_by_id)}")
-    for r in regions_wanted:
-        if r not in region_ids:
-            raise HTTPException(404, f"Unknown region '{r}'. Options: {sorted(region_ids)}")
-    try:
-        start_date = pd.Timestamp(start) if start else TABLE["date"].min()
-        end_date = pd.Timestamp(end) if end else TABLE["date"].max()
-    except ValueError:
-        raise HTTPException(422, "start and end must look like 2010-01")
-    if start_date > end_date:
-        raise HTTPException(422, "start must not be after end")
-    return variables_by_id[variable], start_date, end_date
-
-
 @app.get("/api/trend", response_model=TrendResponse, summary="Trend and significance for one region")
 def trend(
     variable: str = Query(..., description="Variable id, from /api/variables", examples=["soil_moisture"]),
@@ -259,11 +213,171 @@ def trend(
     end: Optional[str] = Query(None, description="Last month, as YYYY-MM", examples=["2024-12"]),
 ):
     """Returns the rate of change per decade for one variable in one region, with a 95% range and a significance test."""
-    var, start_date, end_date = check_request(variable, [region], start, end)
-    rows = TABLE[(TABLE["variable"] == variable) & (TABLE["region"] == region)]
-    rows = rows[(rows["date"] >= start_date) & (rows["date"] <= end_date)]
-    try:
-        result = compute_trend(rows["date"].tolist(), rows["value"].tolist(), var["unit"])
-    except ValueError as error:
-        raise HTTPException(422, str(error))
-    return {"region": region, "variable": variable, "result": result, "provenance": PROVENANCE}
+    variable_ids = {v["id"] for v in load_json("variables.json")}
+    if variable not in variable_ids:
+        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variable_ids)}")
+    if region not in REGION_IDS:
+        raise HTTPException(404, f"Unknown region '{region}'. Options: {sorted(REGION_IDS)}")
+
+    start_ym, end_ym = validate_window(start, end)
+
+    precomputed = TREND_BY_KEY.get((region, variable))
+    found = SERIES.get((region, variable))
+    if precomputed is None or found is None:
+        raise HTTPException(404, f"No data for region '{region}' and variable '{variable}'")
+
+    full_period = (start_ym is None or start_ym <= FULL_START) and (end_ym is None or end_ym >= FULL_END)
+    if full_period:
+        return {
+            "region": region,
+            "variable": variable,
+            "kind": "precomputed",
+            "note": f"Full-period analysis ({FULL_START} to {FULL_END}). Significance is corrected for testing many regions at once (q_value).",
+            "result": precomputed,
+            "provenance": ML_PROVENANCE,
+        }
+
+    points = [
+        p for p in found["series"]
+        if (not start_ym or p["date"][:7] >= start_ym) and (not end_ym or p["date"][:7] <= end_ym)
+    ]
+    result, details = analyze_trend(
+        [p["date"] for p in points],
+        [float("nan") if p.get("value") is None else p["value"] for p in points],
+        precomputed["unit"], start_ym, end_ym,
+    )
+    result.update(region=region, variable=variable)
+    # A per-request trend is not a member of the original 84-test FDR family.
+    result["significant"] = None
+    result["q_value"] = None
+    return {
+        "region": region, "variable": variable, "kind": "custom_window",
+        "note": "Custom-window seasonal OLS with calendar-aware HAC uncertainty. No multiple-testing correction; do not interpret the raw p-value as a confirmed discovery.",
+        "result": result, "provenance": ML_PROVENANCE,
+    }
+
+
+@app.get("/api/discoveries", response_model=DiscoveriesResponse, summary="Hotspots, Earth Opposites and Earth Twins")
+def discoveries():
+    """Returns the precomputed discoveries.
+
+    - **hotspots**: the regions and variables changing the most, strongest first
+    - **opposites**: for each variable, the region getting lower versus the region getting higher
+    - **twins**: pairs of regions with similar behavior (smaller distance = more alike)
+
+    The numbers are provisional until the science review is finished."""
+    return {
+        "run_id": RUN_ID,
+        "review_status": REVIEW_STATUS,
+        "hotspots": DISCOVERIES["hotspots"],
+        "opposites": DISCOVERIES["opposites"],
+        "twins": DISCOVERIES["twins"],
+        "limitations": MANIFEST["limitations"],
+    }
+
+@app.get("/api/map-trends", response_model=MapTrendsResponse, summary="One trend per region, for coloring the map")
+def map_trends(
+    variable: str = Query(..., description="Variable id, from /api/variables", examples=["precipitation"]),
+):
+    """Returns the full-period trend for all 21 regions for one variable."""
+    variable_ids = {v["id"] for v in load_json("variables.json")}
+    if variable not in variable_ids:
+        raise HTTPException(404, f"Unknown variable '{variable}'. Options: {sorted(variable_ids)}")
+
+    names = {r["id"]: r["name"] for r in REGIONS}
+    items = []
+    unit = ""
+    for t in TRENDS["results"]:
+        if t["variable"] != variable:
+            continue
+        unit = t["unit"]
+        items.append({**t, "name": names[t["region"]]})
+
+    return {
+        "variable": variable,
+        "unit": unit,
+        "run_id": RUN_ID,
+        "review_status": REVIEW_STATUS,
+        "regions": items,
+    }
+
+
+@app.get("/api/regions/geojson", summary="Region outlines for the map")
+def regions_geojson():
+    """Returns the outlines of all 21 regions as GeoJSON. Each feature's properties include region_id."""
+    return GEOJSON
+
+def cluster_context(region):
+    if region not in REGION_IDS:
+        raise HTTPException(404, f"Unknown region '{region}'")
+    assignments = {r["region"]: r for r in CLUSTERS["assignments"]}
+    features = CLUSTERS["features"]
+    fingerprints = {
+        rid: {v: TREND_BY_KEY.get((rid, v), {}).get("standardized_trend") for v in features}
+        for rid in REGION_IDS
+    }
+    own = fingerprints[region]
+    neighbors = []
+    if all(isinstance(own[v], (int, float)) for v in features):
+        for rid, values in fingerprints.items():
+            if rid == region or not all(isinstance(values[v], (int, float)) for v in features):
+                continue
+            distance = float(np.linalg.norm([own[v] - values[v] for v in features]))
+            neighbors.append({"region": rid, "distance": distance, "cluster": assignments.get(rid, {}).get("cluster"), "fingerprint": values})
+    return {**assignments.get(region, {"region": region, "cluster": None}), "fingerprint": own,
+            "neighbors": sorted(neighbors, key=lambda n: (n["distance"], n["region"]))[:5]}
+
+
+@app.get("/api/clusters", summary="Trained K-means groups, fingerprints and nearest regions")
+def clusters(region: Optional[str] = None):
+    return {**CLUSTERS, "period": [FULL_START, FULL_END], "review_status": REVIEW_STATUS,
+            "provenance": ML_PROVENANCE, "context": cluster_context(region) if region else None}
+
+
+@lru_cache(maxsize=1)
+def map_geometry():
+    """Smaller source-derived outlines for the interactive map, never analytical masks."""
+    path = DATA_DIR / "rockit" / "map_regions.geojson"
+    return json.loads(path.read_text()) if path.exists() else GEOJSON
+
+
+@app.get("/api/map-geometry", summary="Display outlines derived from source region geometry")
+def display_geometry():
+    return map_geometry()
+
+
+@app.get("/api/mission", summary="One complete, reproducible exploration")
+def mission(
+    region: list[str] = Query(..., min_length=1, max_length=2),
+    variable: list[str] = Query(..., min_length=1, max_length=4),
+    start: Optional[str] = None,
+    end: Optional[str] = None,
+):
+    first, last = validate_window(start, end)
+    regions = list(dict.fromkeys(region))
+    variables = list(dict.fromkeys(variable))
+    for rid in regions:
+        if rid not in REGION_IDS:
+            raise HTTPException(404, f"Unknown region '{rid}'")
+    known_variables = {v["id"] for v in load_json("variables.json")}
+    if any(v not in known_variables for v in variables):
+        raise HTTPException(404, "An unsupported variable was selected.")
+    results = []
+    for vid in variables:
+        history = timeseries(variable=vid, region=regions, start=first, end=last)
+        trends = [trend(variable=vid, region=rid, start=first, end=last) for rid in regions]
+        results.append({**history, "trends": trends})
+    return {
+        "id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat(),
+        "selection": {"regions": regions, "variables": variables, "start": first, "end": last},
+        "results": results,
+        "ml": {"algorithm": CLUSTERS["algorithm"], "k": CLUSTERS["k"], "status": CLUSTERS["status"],
+               "period": [FULL_START, FULL_END], "features": CLUSTERS["features"],
+               "scaling": CLUSTERS["scaling"], "n_training_regions": CLUSTERS["n_training_regions"],
+               "evaluation": CLUSTERS["evaluation"], "centers": CLUSTERS["centers"],
+               "assignments": CLUSTERS["assignments"], "limitations": CLUSTERS["limitations"],
+               "regions": [cluster_context(rid) for rid in regions], "run_id": RUN_ID},
+        "provenance": ML_PROVENANCE,
+        "limitations": MANIFEST["limitations"],
+        "quality_notes": (["Central Andean puna temperature contains an unusually large step-shaped change. Values are retained as supplied and require source/scientific review before interpretation."] if "central_andean_puna" in regions else []),
+    }

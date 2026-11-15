@@ -67,13 +67,6 @@ class TrendResult(BaseModel):
     missing_fraction: float = Field(description="Share of months in the range that had no data")
 
 
-class TrendResponse(BaseModel):
-    region: str
-    variable: str
-    result: TrendResult
-    provenance: Provenance
-
-
 class MlTrend(BaseModel):
     region: str
     variable: str
@@ -84,7 +77,8 @@ class MlTrend(BaseModel):
     n_observations: int
     expected_months: int
     coverage: float
-    max_gap_months: int
+    max_gap_months: Optional[int] = None
+    confidence_interval: Optional[list[float]] = None
     slope_per_decade: Optional[float] = None
     ci_low: Optional[float] = None
     ci_high: Optional[float] = None
@@ -96,7 +90,8 @@ class MlTrend(BaseModel):
     standardized_trend: Optional[float] = None
     fitted_period_change: Optional[float] = None
     hac_lags: Optional[int] = None
-    method: str
+    method: str = ""
+    reason: Optional[str] = None
 
 
 class Hotspot(MlTrend):
@@ -121,3 +116,34 @@ class DiscoveriesResponse(BaseModel):
     hotspots: list[Hotspot]
     opposites: list[Opposite]
     twins: list[Twin]
+    limitations: list[str]
+
+class TrendResponse(BaseModel):
+    region: str
+    variable: str
+    kind: Literal["precomputed", "custom_window"] = Field(
+        description="precomputed = the ML team's full-period analysis. quick_estimate = simple fallback for a custom date range."
+    )
+    note: str
+    result: MlTrend
+    provenance: Provenance
+
+class MapTrendItem(BaseModel):
+    region: str
+    name: str
+    slope_per_decade: Optional[float] = None
+    standardized_trend: Optional[float] = Field(
+        default=None, description="Trend in units of the region's own variability. Comparable across variables and regions, so good for map colors."
+    )
+    direction: Optional[str] = None
+    significant: Optional[bool] = None
+    evidence: Optional[str] = None
+    q_value: Optional[float] = None
+
+
+class MapTrendsResponse(BaseModel):
+    variable: str
+    unit: str
+    run_id: str
+    review_status: str
+    regions: list[MapTrendItem]

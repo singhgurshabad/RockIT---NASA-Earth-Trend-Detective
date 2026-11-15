@@ -13,7 +13,7 @@
     "label": "Precipitation",
     "gldas_field": "Rainf_f_tavg",
     "unit": "mm/day",
-    "description": "How much water falls on the region in a month as rain or snow, given as the depth it would make if it stayed where it landed.",
+    "description": "Monthly mean precipitation rate: the average daily depth of rain and snow water equivalent over the region, in mm/day.",
     "why_it_matters": "Precipitation refills soil, rivers and groundwater. Changes in it are one of the main drivers of drought and flooding.",
     "icon": "cloud-rain"
   },
