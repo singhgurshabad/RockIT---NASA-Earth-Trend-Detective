@@ -1,5 +1,21 @@
 [
   {
+    "id": "surface_temperature",
+    "term": "Surface temperature",
+    "category": "variable",
+    "definition": "The temperature of the land surface itself (its skin), in degrees Celsius.",
+    "explanation": "This is not the air temperature in a weather report. Bare ground in the sun can be much hotter than the air above it. GLDAS field AvgSurfT_inst.",
+    "related": ["gldas"]
+  },
+  {
+    "id": "precipitation",
+    "term": "Precipitation",
+    "category": "variable",
+    "definition": "Rain and snow falling on the region, as the average depth of water per day in each month (mm/day).",
+    "explanation": "1 mm of precipitation is 1 litre of water on every square metre of ground. GLDAS reports a rate per second, which RockIT multiplies by 86,400 to get mm per day. Multiply by the days in a month for a monthly total.",
+    "related": ["soil_moisture", "evapotranspiration"]
+  },
+  {
     "id": "soil_moisture",
     "term": "Soil moisture",
     "category": "variable",
@@ -8,20 +24,36 @@
     "related": ["precipitation"]
   },
   {
-    "id": "precipitation",
-    "term": "Precipitation",
+    "id": "evapotranspiration",
+    "term": "Evapotranspiration",
     "category": "variable",
-    "definition": "The water that falls in a month as rain or snow, given as a depth in millimetres.",
-    "explanation": "1 mm of precipitation is 1 litre of water on every square metre of ground. GLDAS reports a rate per second, which RockIT converts to mm per month.",
-    "related": ["soil_moisture"]
+    "definition": "Water returning from land to air, by evaporation and through plants, as the average depth per day in each month (mm/day).",
+    "explanation": "It links the water cycle to the energy cycle, because evaporating water uses heat. GLDAS field Evap_tavg.",
+    "related": ["precipitation", "soil_moisture"]
   },
   {
     "id": "trend",
     "term": "Trend",
     "category": "statistics",
     "definition": "The average direction and speed of change in a measurement over many years.",
-    "explanation": "RockIT reports the trend as a change per decade after removing the normal seasonal cycle, so a wet winter does not look like a long-term change.",
-    "related": ["p_value"]
+    "explanation": "RockIT reports the trend as a change per decade. The fit includes the normal seasonal cycle, so a wet winter does not look like a long-term change.",
+    "related": ["confidence_interval", "p_value", "q_value"]
+  },
+  {
+    "id": "anomaly",
+    "term": "Anomaly",
+    "category": "statistics",
+    "definition": "How far a month is from what is normal for that calendar month.",
+    "explanation": "RockIT subtracts each calendar month's own average over the window you ran. A July anomaly of +1 means that July was 1 unit above the average July in the window. Anomalies are for charts. The trend test uses the full fit.",
+    "related": ["trend"]
+  },
+  {
+    "id": "confidence_interval",
+    "term": "95% range",
+    "category": "statistics",
+    "definition": "The range of trend values that fit the data reasonably well.",
+    "explanation": "If the range includes zero, the data cannot tell a rising trend from a falling one. The range allows for month-to-month correlation, but it does not include uncertainty in the GLDAS model itself, so the true uncertainty is larger.",
+    "related": ["trend", "p_value"]
   },
   {
     "id": "p_value",
@@ -29,14 +61,70 @@
     "category": "statistics",
     "definition": "How surprising a trend this strong would be if there were really no trend at all.",
     "explanation": "A small p-value, such as below 0.05, means chance alone is an unlikely explanation. It is not the probability that the trend is real, and it says nothing about how large or important the trend is.",
-    "related": ["trend"]
+    "related": ["trend", "q_value"]
+  },
+  {
+    "id": "q_value",
+    "term": "q-value",
+    "category": "statistics",
+    "definition": "A p-value adjusted for the fact that RockIT tests 84 trends at once.",
+    "explanation": "Test enough series and some will look significant by luck. The Benjamini-Hochberg adjustment controls how many of the trends called 'supported' are expected to be false alarms. RockIT calls a trend supported only when q is 0.05 or less.",
+    "related": ["p_value", "evidence"]
+  },
+  {
+    "id": "evidence",
+    "term": "Supported and inconclusive",
+    "category": "statistics",
+    "definition": "Supported means the trend passed the q-value test. Inconclusive means it did not.",
+    "explanation": "Inconclusive is not the same as no change. It means this record cannot tell a real trend from natural ups and downs.",
+    "related": ["q_value"]
+  },
+  {
+    "id": "standardized_trend",
+    "term": "Standardized trend",
+    "category": "statistics",
+    "definition": "A trend divided by how much that region's monthly anomalies normally vary.",
+    "explanation": "It is measured in standard deviations per decade, so a temperature trend and a rainfall trend can be compared on one scale. A value of 1 means the region shifts by one typical month-to-month swing every ten years.",
+    "related": ["anomaly", "fingerprint"]
   },
   {
     "id": "gldas",
     "term": "GLDAS",
     "category": "dataset",
     "definition": "NASA's Global Land Data Assimilation System, which produces gridded estimates of land conditions like soil moisture and temperature.",
-    "explanation": "GLDAS combines a land-surface computer model with satellite and ground observations. Its numbers are model estimates, not direct measurements at one place.",
+    "explanation": "GLDAS combines a land-surface computer model with satellite and ground observations. Its numbers are model estimates, not direct measurements at one place. RockIT uses the Noah model, version 2.1, monthly, on a 0.25 degree grid.",
     "related": []
+  },
+  {
+    "id": "fingerprint",
+    "term": "Fingerprint",
+    "category": "discovery",
+    "definition": "A region's four standardized trends taken together: temperature, precipitation, soil moisture and evapotranspiration.",
+    "explanation": "It summarises how a region changed over 2001 to 2024, not what its climate is like. A desert and a rainforest could share a fingerprint if both warmed and dried at a similar relative pace.",
+    "related": ["standardized_trend", "twin", "cluster"]
+  },
+  {
+    "id": "twin",
+    "term": "Earth Twin",
+    "category": "discovery",
+    "definition": "The region whose fingerprint is closest to another region's.",
+    "explanation": "Closeness is the straight-line distance between two fingerprints. Smaller means more alike. It is not a probability, it has no significance test, and regions that overlap on the map are similar partly by construction.",
+    "related": ["fingerprint"]
+  },
+  {
+    "id": "cluster",
+    "term": "Cluster",
+    "category": "discovery",
+    "definition": "A group of regions with similar fingerprints, found by the K-means algorithm.",
+    "explanation": "The groups describe this dataset. They are not natural classes, they predict nothing, and the group numbers are arbitrary. Two groups was the only choice that passed the team's stability checks.",
+    "related": ["fingerprint"]
+  },
+  {
+    "id": "hotspot",
+    "term": "Hotspot",
+    "category": "discovery",
+    "definition": "One of the five largest supported trends for a variable.",
+    "explanation": "Hotspots are ranked by the size of the change per decade within each variable. Being a hotspot says the GLDAS estimate changed a lot. It does not say why.",
+    "related": ["trend", "evidence"]
   }
 ]
